@@ -5,25 +5,13 @@ import re
 from pathlib import Path
 from typing import List, Optional, Set
 from redact_gov.config import settings
-from redact_gov.core.models import RedactionEntity
-from redact_gov.core.statutes import VIRGINIA_STATUTES
+from redact_gov.core.criteria import DEFAULT_ROLE_CONSTRAINTS, SubjectRole
+from redact_gov.core.models import BoundingBox, RedactionEntity
 
-# Allowlisted public roles that must NEVER be redacted
-PUBLIC_OFFICIAL_WHITELIST: Set[str] = {
-    "chief of police",
-    "police chief",
-    "sheriff",
-    "county supervisor",
-    "school board chair",
-    "superintendent",
-    "mayor",
-    "city attorney",
-    "commonwealth's attorney",
-    "foia officer",
-    "presiding officer",
-    "executive director",
-    "natural heritage director",
-}
+# Centralized allowlisted public roles that must NEVER be redacted
+PUBLIC_OFFICIAL_WHITELIST: Set[str] = set(
+    DEFAULT_ROLE_CONSTRAINTS[SubjectRole.PUBLIC_OFFICIAL].allowlisted_titles
+)
 
 # Common English words that should not be classified as names
 STOP_WORDS: Set[str] = {
@@ -131,8 +119,11 @@ class ContextualGemmaEngine:
         """High-precision contextual rule extractor matching Gemma's target statutory categories."""
         entities: List[RedactionEntity] = []
 
-        # 1. Informant tags: CI-####, Informant #..., Source Alpha/Bravo
-        informant_pattern = re.compile(r"\b(?:CI|Informant|Source)\s*[-#]?\s*([A-Za-z0-9]{3,8})\b", re.IGNORECASE)
+        # 1. Informant tags: CI-####, Informant #..., Source #...
+        informant_pattern = re.compile(
+            r"\b(?:CI[-#\s]\s*[A-Za-z0-9]{2,8}|(?:Informant|Source)\s*[-#]\s*[A-Za-z0-9]{2,8})\b",
+            re.IGNORECASE,
+        )
         for m in informant_pattern.finditer(text):
             val = m.group(0)
             entities.append(

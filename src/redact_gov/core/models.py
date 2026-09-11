@@ -33,6 +33,7 @@ class RedactionEntity(BaseModel):
     page_number: int = Field(default=1, description="1-based page index")
     bounding_boxes: List[BoundingBox] = Field(default_factory=list)
     tier: str = Field(default="tier1_deterministic", description="Engine tier (tier1_deterministic or tier2_gemma)")
+    context_label: Optional[str] = Field(default=None, description="Form prompt, question, or surrounding title block label")
     approved: bool = Field(default=True, description="Approval state for human-in-the-loop review")
 
 

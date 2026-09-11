@@ -6,7 +6,7 @@
 - **PDF Sanitization Standard:** Always use `pikepdf` (backed by QPDF) for PDF manipulation, content stream editing, and metadata eradication. Never use `PyMuPDF` or `fitz`.
 - **Data Engineering:** Use the `polars` DataFrame library for high-speed tabular processing, token indexing, and redaction certificate record-keeping.
 - **Typography & Formatting:** Never use the em dash "—". Use plain dash "-" instead.
-- **Git & Commits:** Never auto-add agent name as co-author.
+- **Git & Commits:** Never auto-add agent name as co-author. All code and GitHub commits must exclusively use `mr8lu` as the author name.
 
 ## Core Modules
 - `redact_gov.core.models`: Pydantic schemas for entities, bounding boxes, statutory codes, and audit records.

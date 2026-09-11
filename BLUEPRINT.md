@@ -156,3 +156,38 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 ### Follow-On Trajectory: Virginia Venture Partners (VVP)
 - **Milestone for Equity Funding:** 5 active municipal deployments across Virginia and $30k+ ARR within 9 months.
 - **Vehicle:** Pitch for a $150,000 VVP Launch Note or $250,000 Pre-Seed Round to scale sales across the Mid-Atlantic state-and-local government (SLED) corridor.
+
+---
+
+## 7. Beta Release Gap Analysis & Commercialization Strategy
+
+### 7.1 Beta Technical Gap Matrix
+
+| Module / Capability | Current State | Beta Target | Priority | Status / Path |
+| :--- | :--- | :--- | :--- | :--- |
+| **OCR for Scanned Records** | Digital-native only (`pdfplumber`) | Air-gapped OCR sandwich layer | **P0 (Blocker)** | Integrate `ocrmypdf`/`tesseract` fallback when digital text stream < 20 chars. |
+| **Human-in-the-Loop UI** | Headless FastAPI + Typer CLI | Visual PDF.js review interface | **P0 (Blocker)** | Lightweight canvas overlay to approve, modify, or add redaction boxes. |
+| **Air-Gapped Packaging** | CLI via `uv run` | Single-click desktop / Docker bundle | **P1 (Critical)** | Package via Tauri desktop shell (.dmg/.msi) and offline `docker-compose`. |
+| **Async Processing Queue** | Synchronous in-memory | Chunked background processing | **P1 (Critical)** | Stream large docs (100-500+ pages) without HTTP timeout or OOM. |
+| **Model Distribution** | Standalone HF download script | Pre-bundled quantized weights | **P2 (Operational)** | Pre-package `gemma-4-e4b-it-Q4_K_M.gguf` in installer or local models directory. |
+
+### 7.2 Air-Gapped Model Architecture (No Download Scripts in Production)
+- **Firewall & Air-Gap Compliance:** Municipal and law enforcement networks block outbound connections to Hugging Face. The application installer must co-locate quantized GGUF weights directly in `./models/`, enabling zero-network bootup.
+- **Gated Model Mitigation:** Avoids requiring county staff to manage Hugging Face user tokens (`HF_TOKEN`) or accept individual cloud licenses.
+- **Deterministic Fallback:** When model weights are absent or loading fails, `ContextualGemmaEngine` automatically degrades to high-precision heuristic rule extraction without interrupting the user.
+
+### 7.3 Commercialization & Virginia Market Rollout
+
+1. **VPPA Micro-Purchase Fast-Track:**
+   - Standard RFP Threshold in Virginia: Procurements over $50,000 require multi-month competitive bidding.
+   - Micro-Purchase Exemption (**Va. Code § 2.2-4303(G)**): Purchases under $10,000 can be authorized immediately via Departmental Purchasing Cards (P-Cards).
+   - Commercial Pricing Tiers:
+     - **Workstation Edition:** $4,900 / year (single clerk seat, unlimited processing).
+     - **Department Edition:** $9,500 / year (5 seats, local intranet deployment).
+     - **County Enterprise:** $24,500 / year (unlimited intranet seats, multi-department audit logs).
+
+2. **VIPC CCF Grant Submission Roadmap:**
+   - Target 3 Virginia counties (e.g., Campbell, Bedford, Pittsylvania) for zero-cost 60-day air-gapped pilot deployments.
+   - Secure 2 Letters of Intent (LOIs) from participating clerks to accompany the $50,000 grant application.
+   - Secure formal Legal Opinion Letter validating PikePDF low-level stream excision against statutory public disclosure standards.
+

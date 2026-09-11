@@ -96,6 +96,22 @@ class DeterministicRedactionEngine:
             ),
             0.96,
         ),
+        # Labeled or standalone Decimal Latitude in Virginia bounds (e.g. 37.339070° LAT., LATITUDE: 37.339070°, 37.338590 N)
+        (
+            "gps_coordinate",
+            re.compile(
+                r"""(?i)(?<!\w)(?:LAT(?:ITUDE)?[\s:]+)?([+-]?3[6-9]\.\d{4,8}\s*°?(?:\s*[Nn]|\s*LAT(?:ITUDE)?\.?)?)\b"""
+            ),
+            0.96,
+        ),
+        # Labeled or standalone Decimal Longitude in Virginia bounds (e.g. -79.260396° LONG., LONGITUDE: -79.260396°, 79.260396 W)
+        (
+            "gps_coordinate",
+            re.compile(
+                r"""(?i)(?<!\w)(?:LONG(?:ITUDE)?[\s:]+)?([+-]?(?:7[5-9]|8[0-3])\.\d{4,8}\s*°?(?:\s*[Ww]|\s*LONG(?:ITUDE)?\.?)?)\b"""
+            ),
+            0.96,
+        ),
     ]
 
     def scan_text(self, text: str, page_number: int = 1) -> List[RedactionEntity]:
