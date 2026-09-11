@@ -1,0 +1,32 @@
+[project]
+name = "redact-gov"
+version = "0.1.0"
+description = "Sovereign, air-gapped FOIA/VFOIA document redaction engine powered by on-device Google Gemma 4 E4B and surgical PikePDF stream sanitization."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pdfplumber>=0.11.10",
+    "pikepdf>=10.13.0.post1",
+    "polars>=1.44.2",
+    "pydantic>=2.13.5",
+    "pypdf>=6.18.0",
+    "pytest>=9.1.1",
+    "reportlab>=5.0.1",
+    "rich>=15.0.0",
+    "typer>=0.27.2",
+    "uvicorn>=0.52.4",
+]
+
+[project.scripts]
+redactgov = "redact_gov.cli:app"
+redact-gov = "redact_gov.cli:app"
+
+[project.optional-dependencies]
+llm = [
+    "llama-cpp-python>=0.3.35",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"

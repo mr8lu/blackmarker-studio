@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data directory
+data/
+/data
+
+# Model weights & large binaries
+
+# System & Cache
+.DS_Store
+.pytest_cache/
+*.swp
+
