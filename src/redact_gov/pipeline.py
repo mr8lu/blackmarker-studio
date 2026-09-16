@@ -115,12 +115,24 @@ class RedactionPipeline:
                             e.context_label = f"Text Context: {c_name}"
                         tier1_entities.append(e)
 
-                    # 2. Tier 2 Contextual Cognitive Path (Google Gemma 4 E4B)
-                    tier2_entities = (
-                        self.contextual_engine.analyze_text(page_text, page_number=page_idx)
-                        if page_text.strip()
-                        else []
-                    )
+                    # 2. Tier 2 Contextual Cognitive Path / Multimodal Vision
+                    if len(page_text.strip()) < 20:
+                        # Scanned or image-heavy page: use multimodal vision
+                        try:
+                            page_img = page.to_image(resolution=72).original
+                            img_path = Path(f"/tmp/redact_gov_page_{page_idx}.png")
+                            page_img.save(img_path)
+                            tier2_entities = self.contextual_engine.analyze_image(img_path, page_number=page_idx)
+                            if img_path.exists():
+                                img_path.unlink()
+                        except Exception:
+                            tier2_entities = []
+                    else:
+                        tier2_entities = (
+                            self.contextual_engine.analyze_text(page_text, page_number=page_idx)
+                            if page_text.strip()
+                            else []
+                        )
 
                     # 3. Form-filled AcroForm and Widget Annotation Scanning
                     form_entities: List[RedactionEntity] = []
