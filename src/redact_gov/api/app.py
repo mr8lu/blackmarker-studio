@@ -4,9 +4,10 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import Dict, List
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from redact_gov.config import settings
 from redact_gov.core.models import RedactionPlan, RedactionResult
@@ -27,9 +28,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static folder
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 pipeline = RedactionPipeline()
 DOC_STORE: Dict[str, Path] = {}
 PLAN_STORE: Dict[str, RedactionPlan] = {}
+
+@app.get("/")
+def get_ui():
+    index_path = static_dir / "index.html"
+    if index_path.exists():
+        return HTMLResponse(index_path.read_text())
+    return HTMLResponse("<h1>UI not found. Please create static/index.html</h1>")
 
 
 @app.get("/api/health")
@@ -79,6 +92,14 @@ def get_plan(doc_id: str):
     return PLAN_STORE[doc_id]
 
 
+@app.post("/api/documents/{doc_id}/plan")
+def update_plan(doc_id: str, plan: RedactionPlan):
+    if doc_id not in PLAN_STORE:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    PLAN_STORE[doc_id] = plan
+    return {"status": "success", "plan": PLAN_STORE[doc_id]}
+
+
 @app.post("/api/documents/{doc_id}/execute")
 def execute_redaction(doc_id: str):
     if doc_id not in DOC_STORE or doc_id not in PLAN_STORE:
@@ -109,3 +130,16 @@ def download_sanitized_pdf(doc_id: str):
         raise HTTPException(status_code=404, detail="Sanitized PDF not yet generated.")
 
     return FileResponse(output_path, media_type="application/pdf", filename=output_path.name)
+
+
+@app.get("/api/documents/{doc_id}/certificate")
+def download_certificate_pdf(doc_id: str):
+    if doc_id not in DOC_STORE:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    input_path = DOC_STORE[doc_id]
+    cert_path = settings.OUTPUT_DIR / f"certificate_{input_path.stem}.pdf"
+    if not cert_path.is_file():
+        raise HTTPException(status_code=404, detail="Certificate PDF not yet generated.")
+
+    return FileResponse(cert_path, media_type="application/pdf", filename=cert_path.name)

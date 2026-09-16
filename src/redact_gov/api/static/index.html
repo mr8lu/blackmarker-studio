@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RedactGov HITL Reviewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        :root {
+            --primary: #003366;
+            --primary-light: #004080;
+            --success: #28a745;
+            --danger: #dc3545;
+            --gray: #6c757d;
+            --bg-color: #f4f6f9;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            width: 100%;
+        }
+        .sidebar {
+            width: 350px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .upload-section, .doc-info, .actions {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .entity-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        .entity-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: box-shadow 0.2s;
+        }
+        .entity-card:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .entity-card.approved { border-left: 4px solid var(--success); }
+        .entity-card.rejected { border-left: 4px solid var(--danger); }
+        
+        .pdf-viewer-container {
+            flex: 1;
+            overflow: auto;
+            background: #e9ecef;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+        .pdf-page-wrapper {
+            position: relative;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .bbox {
+            position: absolute;
+            border: 2px solid;
+            background-color: rgba(0,0,0,0.1);
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .bbox.approved { border-color: var(--success); background-color: rgba(40, 167, 69, 0.2); }
+        .bbox.rejected { border-color: var(--danger); background-color: rgba(220, 53, 69, 0.2); }
+        
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+        }
+        .btn-primary { background: var(--primary); }
+        .btn-success { background: var(--success); }
+        .btn-danger { background: var(--danger); }
+        .btn-secondary { background: var(--gray); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            background: #eee;
+            color: #333;
+        }
+        .loader {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <header>
+            <h2 style="margin:0; font-size:1.2rem;">RedactGov</h2>
+        </header>
+        <div class="upload-section">
+            <input type="file" id="pdfUpload" accept="application/pdf" style="display:none">
+            <button class="btn-primary" style="width:100%" onclick="document.getElementById('pdfUpload').click()">Upload Document</button>
+            <div id="uploadLoader" class="loader" style="margin: 10px auto;"></div>
+        </div>
+        <div class="doc-info" id="docInfo" style="display:none">
+            <h4 style="margin-top:0">Document Info</h4>
+            <p style="margin:5px 0; font-size:0.9em">ID: <span id="docId"></span></p>
+            <p style="margin:5px 0; font-size:0.9em">Pages: <span id="docPages"></span></p>
+            <p style="margin:5px 0; font-size:0.9em">Entities: <span id="docEntities"></span></p>
+        </div>
+        <div class="actions" id="bulkActions" style="display:none; gap:5px;">
+            <button class="btn-success" onclick="toggleAll(true)" style="flex:1">Approve All</button>
+            <button class="btn-danger" onclick="toggleAll(false)" style="flex:1">Reject All</button>
+        </div>
+        <div class="entity-list" id="entityList"></div>
+        <div class="actions" id="executeActions" style="display:none; flex-direction:column; gap:10px">
+            <button class="btn-primary" onclick="executeRedaction()" id="btnExecute">Execute Redaction</button>
+            <div id="execLoader" class="loader" style="margin: 0 auto;"></div>
+            <a id="downloadSanitized" class="btn-success" style="display:none; text-align:center; text-decoration:none; padding:8px" target="_blank">Download PDF</a>
+            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px" target="_blank">Download Certificate</a>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="pdf-viewer-container" id="pdfViewer">
+            <h3 style="color:#aaa; margin-top:20%">Upload a document to begin review</h3>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let currentDocId = null;
+        let currentPlan = null;
+        let currentFileUrl = null;
+        let pdfDoc = null;
+        let renderTask = null;
+
+        const uploadInput = document.getElementById('pdfUpload');
+        uploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadLoader').style.display = 'block';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/documents/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    currentDocId = data.doc_id;
+                    currentPlan = data.plan;
+                    currentFileUrl = URL.createObjectURL(file);
+                    
+                    document.getElementById('docInfo').style.display = 'block';
+                    document.getElementById('bulkActions').style.display = 'flex';
+                    document.getElementById('executeActions').style.display = 'flex';
+                    
+                    document.getElementById('docId').innerText = data.doc_id;
+                    document.getElementById('docPages').innerText = data.total_pages;
+                    document.getElementById('docEntities').innerText = data.entities_detected;
+                    
+                    renderEntityList();
+                    await loadPdf();
+                } else {
+                    alert('Upload failed: ' + data.detail);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('uploadLoader').style.display = 'none';
+            }
+        });
+
+        async function loadPdf() {
+            const viewer = document.getElementById('pdfViewer');
+            viewer.innerHTML = '';
+            
+            try {
+                pdfDoc = await pdfjsLib.getDocument(currentFileUrl).promise;
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    await renderPage(pageNum, viewer);
+                }
+                drawBboxes();
+            } catch (err) {
+                viewer.innerHTML = `<h3 style="color:red">Error loading PDF: ${err.message}</h3>`;
+            }
+        }
+
+        async function renderPage(pageNum, container) {
+            const page = await pdfDoc.getPage(pageNum);
+            const scale = 1.5;
+            const viewport = page.getViewport({ scale });
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'pdf-page-wrapper';
+            wrapper.style.width = viewport.width + 'px';
+            wrapper.style.height = viewport.height + 'px';
+            wrapper.id = `page-wrapper-${pageNum}`;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            wrapper.appendChild(canvas);
+            container.appendChild(wrapper);
+
+            const renderContext = { canvasContext: ctx, viewport: viewport };
+            await page.render(renderContext).promise;
+            
+            // Store viewport data for bounding boxes
+            wrapper.dataset.scale = scale;
+            wrapper.dataset.pdfWidth = viewport.width / scale;
+            wrapper.dataset.pdfHeight = viewport.height / scale;
+        }
+
+        function drawBboxes() {
+            // Remove existing bboxes
+            document.querySelectorAll('.bbox').forEach(el => el.remove());
+            
+            currentPlan.entities.forEach((entity, index) => {
+                if (!entity.bounding_boxes) return;
+                entity.bounding_boxes.forEach(bbox => {
+                    const wrapper = document.getElementById(`page-wrapper-${bbox.page_num}`);
+                    if (!wrapper) return;
+                    
+                    const scale = parseFloat(wrapper.dataset.scale);
+                    
+                    const boxEl = document.createElement('div');
+                    boxEl.className = `bbox ${entity.approved ? 'approved' : 'rejected'}`;
+                    boxEl.title = `${entity.text} (${entity.category})
+Statute: ${entity.statute_code}`;
+                    
+                    // Coordinates conversion
+                    // PikePDF/pdfplumber usually use (x0, top, x1, bottom) where (0,0) is top-left
+                    const left = bbox.x0 * scale;
+                    const top = bbox.top * scale;
+                    const width = (bbox.x1 - bbox.x0) * scale;
+                    const height = (bbox.bottom - bbox.top) * scale;
+                    
+                    boxEl.style.left = `${left}px`;
+                    boxEl.style.top = `${top}px`;
+                    boxEl.style.width = `${width}px`;
+                    boxEl.style.height = `${height}px`;
+                    
+                    boxEl.onclick = () => toggleEntity(index);
+                    
+                    wrapper.appendChild(boxEl);
+                });
+            });
+        }
+
+        function renderEntityList() {
+            const list = document.getElementById('entityList');
+            list.innerHTML = '';
+            
+            currentPlan.entities.forEach((entity, index) => {
+                const card = document.createElement('div');
+                card.className = `entity-card ${entity.approved ? 'approved' : 'rejected'}`;
+                card.onclick = () => toggleEntity(index);
+                card.innerHTML = `
+                    <div style="font-weight:bold">${entity.text}</div>
+                    <div style="font-size:0.85em; color:var(--gray)">${entity.category}</div>
+                    <div style="font-size:0.8em; margin-top:5px;">
+                        <span class="badge">${entity.statute_code}</span>
+                        ${entity.confidence ? `<span class="badge" style="background:#d1ecf1">Conf: ${entity.confidence.toFixed(2)}</span>` : ''}
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        async function toggleEntity(index) {
+            currentPlan.entities[index].approved = !currentPlan.entities[index].approved;
+            await savePlan();
+            renderEntityList();
+            drawBboxes();
+        }
+
+        async function toggleAll(status) {
+            currentPlan.entities.forEach(e => e.approved = status);
+            await savePlan();
+            renderEntityList();
+            drawBboxes();
+        }
+
+        async function savePlan() {
+            try {
+                await fetch(`/api/documents/${currentDocId}/plan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentPlan)
+                });
+            } catch (err) {
+                console.error("Failed to save plan:", err);
+            }
+        }
+
+        async function executeRedaction() {
+            document.getElementById('execLoader').style.display = 'block';
+            document.getElementById('btnExecute').disabled = true;
+            document.getElementById('downloadSanitized').style.display = 'none';
+            document.getElementById('downloadCert').style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/documents/${currentDocId}/execute`, { method: 'POST' });
+                if (response.ok) {
+                    document.getElementById('downloadSanitized').href = `/api/documents/${currentDocId}/download`;
+                    document.getElementById('downloadSanitized').style.display = 'block';
+                    document.getElementById('downloadCert').href = `/api/documents/${currentDocId}/certificate`;
+                    document.getElementById('downloadCert').style.display = 'block';
+                } else {
+                    const data = await response.json();
+                    alert("Execution failed: " + data.detail);
+                }
+            } catch (err) {
+                alert("Execution error: " + err.message);
+            } finally {
+                document.getElementById('execLoader').style.display = 'none';
+                document.getElementById('btnExecute').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
