@@ -35,8 +35,8 @@ RedactGov bridges this gap with an air-gapped, zero-cloud desktop/server applica
 
 ### Core Processing Stack
 - **Runtime Environment:** Python 3.12+ orchestrated via `uv`, packaged with a local Web GUI (FastAPI + React/PDF.js) or desktop shell (Tauri).
-- **PDF Extraction & Geometry Engine:** `pdfplumber` and `pypdf` for digital-native text streams and exact character-level bounding box spatial geometry; integrated Tesseract OCR pipeline interface for legacy scanned image layers.
-- **Inference Runtime:** `llama-cpp-python` executing quantized GGUF weights of **Google Gemma 4 E4B** (Q4_K_M, ~2.2 GB VRAM footprint; expandable to Gemma 2 9B for high-throughput county workstations) directly on local CPU / Apple Metal / NVIDIA hardware with zero external network connectivity.
+- **PDF Extraction & Geometry Engine:** `pdfplumber` and `pypdf` for digital-native text streams and character-level bounding boxes; native visual rasterizer (rendering high-DPI page pixmaps via `pypdf`/`pikepdf`) for scanned image inputs.
+- **Inference Runtime:** `llama-cpp-python` executing quantized GGUF weights of **Google Gemma 4 E4B** (Q4_K_M base model + `mmproj` multimodal vision projector, ~2.6 GB VRAM footprint) directly on local CPU / Apple Metal / NVIDIA hardware with zero external network connectivity.
 - **Sanitization & Burn-In Engine:** `pikepdf` (backed by the C++ QPDF engine) for deterministic content stream modification, font glyph excision (`Tj` and `TJ` operator rewriting), opaque vector polygon burning, and complete XMP/piece-info metadata eradication.
 - **Tabular Data & Audit Optimization:** Polars DataFrame engine for high-velocity aggregation and parsing of redaction logs, token boundaries, and compliance certificates.
 
@@ -47,13 +47,16 @@ RedactGov bridges this gap with an air-gapped, zero-cloud desktop/server applica
    - Algorithmic checks (Luhn validation, state license checksums).
    - Instant bounding box generation for verbatim matches.
 
-2. **Tier 2 (Cognitive Context Path - Google Gemma 4 E4B):**
-   - Batched paragraph ingestion into quantized Google Gemma 4 E4B using constrained JSON grammar outputs (BNF / JSON Schema enforcement).
+2. **Tier 2 (Cognitive Context & Multimodal Vision Path - Google Gemma 4 E4B):**
+   - **Dual-Modal Selective Architecture:**
+     - *Text Ingestion Mode (Digital-Native):* High-speed batch text ingestion (~0.1-0.3s/page) using constrained JSON grammar outputs (BNF / JSON Schema enforcement).
+     - *Native Vision Mode (Scans & Images):* For flattened scans (<20 digital text characters), handwritten margin notes, signatures, official seals, or crime scene / aerial photos, the engine invokes Gemma 4 E4B's native vision projector (`mmproj-gemma-4-e4b.gguf`) to visually parse and localize sensitive entities without requiring external OCR C-dependencies.
    - Deep classification of protected Virginia statutory legal categories:
      - **Juvenile Identifiers (Va. Code § 16.1-301):** Names, ages, grade levels, juvenile court docket markers, and youth shelter identifiers.
      - **Victim / Witness Safeguards (Va. Code § 19.2-11.2):** Domestic abuse victim descriptors, non-public addresses, protective order details, and 911 caller identities.
      - **Undercover Personnel & Informants (Va. Code § 2.2-3705.2):** Operational unit tags, confidential informant monikers, undercover officer identities, and tactical codes.
      - **Personnel & Privacy Exemptions (Va. Code § 2.2-3705.1):** Personal contact info of non-official individuals, medical data, banking/financial accounts.
+     - **Handwritten Signatures & Visual PII:** Direct visual localization of handwritten signatures, private citizen fingerprints, or sensitive photographs.
      - **Exclusion Heuristics:** Public figures, elected county supervisors, school board chairs, and official agency spokespersons are explicitly allowlisted from accidental redaction.
 
 3. **Spatial Alignment & PikePDF Burn-In:**
@@ -165,14 +168,19 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 
 | Module / Capability | Current State | Beta Target | Priority | Status / Path |
 | :--- | :--- | :--- | :--- | :--- |
-| **OCR for Scanned Records** | Digital-native only (`pdfplumber`) | Air-gapped OCR sandwich layer | **P0 (Blocker)** | Integrate `ocrmypdf`/`tesseract` fallback when digital text stream < 20 chars. |
+| **Multimodal Vision & Scanned Records** | Digital-native only (`pdfplumber`) | Gemma 4 E4B Native Vision (`mmproj`) | **P0 (Blocker)** | Activate Gemma 4 E4B vision projector on image-only pages (<20 chars), signatures, and handwritten notes. |
 | **Human-in-the-Loop UI** | Headless FastAPI + Typer CLI | Visual PDF.js review interface | **P0 (Blocker)** | Lightweight canvas overlay to approve, modify, or add redaction boxes. |
 | **Air-Gapped Packaging** | CLI via `uv run` | Single-click desktop / Docker bundle | **P1 (Critical)** | Package via Tauri desktop shell (.dmg/.msi) and offline `docker-compose`. |
 | **Async Processing Queue** | Synchronous in-memory | Chunked background processing | **P1 (Critical)** | Stream large docs (100-500+ pages) without HTTP timeout or OOM. |
-| **Model Distribution** | Standalone HF download script | Pre-bundled quantized weights | **P2 (Operational)** | Pre-package `gemma-4-e4b-it-Q4_K_M.gguf` in installer or local models directory. |
+| **Model Distribution** | Standalone HF download script | Pre-bundled quantized weights | **P2 (Operational)** | Pre-package `gemma-4-e4b-it-Q4_K_M.gguf` + `mmproj` in installer. |
 
 ### 7.2 Air-Gapped Model Architecture (No Download Scripts in Production)
-- **Firewall & Air-Gap Compliance:** Municipal and law enforcement networks block outbound connections to Hugging Face. The application installer must co-locate quantized GGUF weights directly in `./models/`, enabling zero-network bootup.
+- **Firewall & Air-Gap Compliance:** Municipal and law enforcement networks block outbound connections to Hugging Face. The application installer must co-locate quantized GGUF weights directly in `./models/`:
+  - `gemma-4-e4b-it-Q4_K_M.gguf`: Base language model (~2.2 GB).
+  - `mmproj-gemma-4-e4b-f16.gguf`: Vision projector module (~400 MB) for native image/scan parsing.
+- **Dual-Modal Performance Optimization:**
+  - Standard digital text streams bypass the vision projector completely to maintain sub-second speed (~0.1-0.3s/page).
+  - Scanned pages, flattened faxes, and visual form boxes activate the vision projector (~2-4s/page), extracting entities and handwritten signatures directly into the unified Virginia FOIA coordinate pipeline.
 - **Gated Model Mitigation:** Avoids requiring county staff to manage Hugging Face user tokens (`HF_TOKEN`) or accept individual cloud licenses.
 - **Deterministic Fallback:** When model weights are absent or loading fails, `ContextualGemmaEngine` automatically degrades to high-precision heuristic rule extraction without interrupting the user.
 
