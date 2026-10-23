@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions (Q&A, Architecture Ideas & Multi-OS Feedback)
+    url: https://github.com/mr8lu/blackmarker-studio/discussions
+    about: Ask questions about air-gapped installation, OS compatibility, Google Gemma 4 E4B setup, or share compliance workflows.
+  - name: Private Security & Sanitization Bypass Reporting
+    url: https://github.com/mr8lu/blackmarker-studio/security/advisories/new
+    about: Privately report PDF stream sanitization bypasses, residual metadata leaks, or security vulnerabilities via GitHub Security Advisories.

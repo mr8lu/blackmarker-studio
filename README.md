@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#supported-compliance-frameworks"><img src="https://img.shields.io/badge/Compliance-FOIA_%E2%80%A2_HIPAA_%E2%80%A2_PCI_DSS_%E2%80%A2_GLBA_%E2%80%A2_FRCP_5.2-0A66C2.svg" alt="Compliance Frameworks" /></a>
   <a href="#a-la-carte-data-domain-selection-pii--phi--ppi"><img src="https://img.shields.io/badge/Domains-PII_%E2%80%A2_PHI_%E2%80%A2_PPI-008080.svg" alt="Data Domains" /></a>
+  <a href="#cross-platform--multi-os-roadmap"><img src="https://img.shields.io/badge/Platform-macOS_14+_(Windows_%26_Linux_Roadmap)-1F2937.svg" alt="Supported Operating Systems" /></a>
   <a href="https://ai.google.dev/gemma"><img src="https://img.shields.io/badge/SLM-Google_Gemma_4_E4B-D93025.svg" alt="Inference Engine" /></a>
   <a href="https://pikepdf.readthedocs.io/"><img src="https://img.shields.io/badge/Sanitizer-PikePDF_QPDF-E37400.svg" alt="Sanitization Engine" /></a>
   <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/Env-Python_3.12+_uv-6B4FBB.svg" alt="Environment" /></a>
@@ -24,6 +25,7 @@
   <a href="#quickstart--installation">Quickstart</a> •
   <a href="#native-macos-studio--menu-bar-droplet">macOS Studio</a> •
   <a href="#cli--web-hitl-reference">CLI &amp; Web HITL</a> •
+  <a href="#cross-platform--multi-os-roadmap">Multi-OS Roadmap</a> •
   <a href="CONTRIBUTING.md">Contributing</a> •
   <a href="SECURITY.md">Security</a>
 </p>
@@ -268,15 +270,53 @@ Open `http://127.0.0.1:8000` in your browser to upload PDFs, toggle `PII` / `PHI
 
 ---
 
+## Cross-Platform & Multi-OS Roadmap
+
+> **Current Build Status (`v0.4.0`):** Blackmarker Studio is **currently built, packaged, and verified on macOS 14+ (Apple Silicon & Intel)** only. Windows and Linux builds have **not** been packaged or tested yet and are scheduled on the **`v0.5.0` roadmap**.
+
+Because the underlying Python sanitization engine (`pikepdf`/`QPDF`, `pdfplumber`, `polars`, `reportlab`, `FastAPI`) uses portable open-source libraries, our `v0.5.0` milestone focuses on building, testing, and packaging standalone Windows and Linux distributions alongside our existing macOS app bundle.
+
+### Current OS Support Matrix vs. Planned Multi-OS Roadmap
+
+| Layer / Capability | macOS 14+ (Apple Silicon & Intel) | Windows 10 / 11 (x64 & ARM64) | Linux Desktop & Server (Ubuntu / Debian / RHEL / WSL2) |
+| :--- | :---: | :---: | :---: |
+| **Build & Verification Status** | **Built & Verified (`v0.4.0` Today)** | **Planned (`v0.5.0` Roadmap)** | **Planned (`v0.5.0` Roadmap)** |
+| **Core PikePDF / QPDF Stream Sanitizer** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Spatial Geometry (`pdfplumber`) & Polars Audit Engine** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 1 Deterministic Engine (`PII` • `PHI` • `PPI`)** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 2 Google Gemma 4 E4B (`llama-cpp-python`)** | Apple Metal / CPU (`v0.4.0` Today) | Planned CPU / CUDA / Vulkan (`v0.5.0`) | Planned CPU / CUDA / ROCm / Vulkan (`v0.5.0`) |
+| **`blackmarker` CLI & Local Web HITL (`blackmarker serve`)** | Built & Verified (`v0.4.0`) | Planned Windows Build (`v0.5.0`) | Planned Linux Build (`v0.5.0`) |
+| **Native Desktop Studio Shell & System Tray Droplet** | `Blackmarker Studio.app` (SwiftUI + `PDFKit` + `MenuBarExtra` - **Today**) | Planned `.exe` / `.msi` (`WebView2` / `Tauri v2` + `pystray` - **`v0.5.0`**) | Planned `.AppImage` / `.deb` / `.rpm` (`WebKitGTK` + Tray - **`v0.5.0`**) |
+| **On-Device Scanned PDF OCR** | Apple `Vision` (`VNRecognizeTextRequest`) + Gemma 4 Vision (**Today**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) |
+
+### Release Milestones
+
+- **`v0.4.0` (Current Release - macOS 14+ Only):**
+  - **macOS 14+ (`Blackmarker Studio.app`):** Native SwiftUI desktop studio, `PDFKit` annotation canvas, Apple `Vision` (`VNRecognizeTextRequest`) neural OCR, `MenuBarExtra` status bar quick-scrub droplet, and Apple Metal GPU acceleration.
+  - **`blackmarker` CLI & Local Web HITL Studio (`blackmarker serve`):** Built and verified on macOS with `PDF.js` interactive review canvas, `Shift + Drag` Manual Blackmarker marquee drawing, a-la-carte `PII` / `PHI` / `PPI` toggles, and ReportLab compliance certificates.
+- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification & Native Windows / Linux Packaging:**
+  - **Windows 10/11 (`.exe` / `.msi`):** Standalone desktop shell via `PyWebView` (Microsoft Edge `WebView2`) / `Tauri v2` + system tray quick-scrub droplet (`pystray`) + single-binary `PyInstaller` bundle, with `llama-cpp-python` AVX2, NVIDIA CUDA, and Vulkan GPU acceleration, plus local ONNX Runtime (`RapidOCR`) fallback for scanned PDFs.
+  - **Linux Desktop & Server (`.AppImage` / `.deb` / `.rpm` / Docker):** Standalone `WebKitGTK` desktop shell + `.AppImage`, `.deb`, and `.rpm` packages + air-gapped `--network=none` OCI/Docker container image for enterprise Linux servers and Windows WSL2.
+  - **GitHub Actions Multi-OS CI/CD Matrix:** Automated builds, test runs, and zero-residual PDF verification across `macos-latest`, `windows-latest`, and `ubuntu-latest`.
+- **`v0.6.0` (Planned Roadmap) - Expanded Global & State Regulatory Packs:**
+  - Pluggable policy packs for **GDPR** (European Union), **CCPA / CPRA** (California), **FERPA** (Education), **CJIS Security Policy v6.0**, and 50-state FOIA statutory registries.
+
+---
+
 ## Project Structure
 
 ```text
 blackmarker-studio/
+├── .github/
+│   ├── PULL_REQUEST_TEMPLATE.md  # Contributor PR verification & layer checklist
+│   ├── ISSUE_TEMPLATE/           # Structured YAML Issue Forms (Bug, Feature, Compliance/Statute)
+│   └── DISCUSSION_TEMPLATE/      # Structured GitHub Discussion templates (Ideas, Q&A, Show & Tell)
 ├── Package.swift                 # SwiftPM manifest for native macOS app & RedactGovKit
 ├── build.sh                      # Builds AppIcon.icns, Swift release binary & Blackmarker Studio.app
 ├── pyproject.toml                # Python 3.12+ project metadata & CLI entrypoints (uv)
 ├── uv.lock                       # Deterministic dependency lockfile
-├── BLUEPRINT.md                  # Technical architecture & commercialization blueprint
+├── BLUEPRINT.md                  # Technical architecture, Multi-OS roadmap & commercialization blueprint
+├── CODE_OF_CONDUCT.md            # Contributor Covenant v2.1 community standards
 ├── CONTRIBUTING.md               # Contributor guide, testing standards & extension instructions
 ├── SECURITY.md                   # Air-gapped threat model, stream verification & disclosure policy
 ├── LICENSE                       # MIT License
@@ -324,7 +364,8 @@ swift test
 
 ## Contributing & Security
 
-- **Contributing:** We welcome pull requests for new sector compliance profiles, statutory mappings, deterministic validators, and UI refinements! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes.
+- **Contributing:** We welcome pull requests for new sector compliance profiles, statutory mappings, deterministic validators, Multi-OS packaging targets, and UI refinements! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md) before submitting changes.
+- **Community & Discussions:** Have questions about air-gapped deployment, hardware benchmarks, or new regulatory frameworks? Open a thread in **GitHub Discussions** or use our structured **GitHub Issue Forms**.
 - **Security & Sanitization Integrity:** Because Blackmarker Studio is engineered for high-assurance legal, clinical, and financial sanitization, any bypass where underlying glyphs survive redaction is treated as a critical security vulnerability. See [SECURITY.md](SECURITY.md) for our air-gapped verification architecture and responsible disclosure policy.
 
 ---

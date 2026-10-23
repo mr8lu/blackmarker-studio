@@ -1,0 +1,74 @@
+name: Compliance Profile or Statute Request
+description: Propose a new statutory/regulatory citation (FOIA, HIPAA, PCI DSS, GLBA, GDPR, CCPA, FERPA) or Tier 1 PII/PHI/PPI pattern.
+title: "[Compliance]: "
+labels: ["compliance", "statutes"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help expand **Blackmarker Studio**'s multi-sector regulatory registry (`src/redact_gov/core/statutes.py` & `criteria.py`) or Tier 1 deterministic validators (`src/redact_gov/engines/deterministic.py`).
+        *Reminder: Only share synthetic examples - never include real `PII`, `PHI`, or `PPI`.*
+
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Regulatory / Statutory Framework
+      description: Which compliance framework or jurisdiction does this request belong to?
+      options:
+        - Federal FOIA (5 U.S.C. 552)
+        - State / Local FOIA & Public Records (Specify State below)
+        - Healthcare - HIPAA Safe Harbor (45 CFR 164.514) / 42 CFR Part 2
+        - Financial & Payment - PCI DSS v4.0 / GLBA (16 CFR Part 314)
+        - Judicial Filings - FRCP 5.2 / State Court Redaction Rules
+        - Enterprise & Privacy - AICPA SOC 2 / NIST SP 800-122
+        - Global & State Privacy - GDPR (EU) / CCPA-CPRA (CA) / FERPA / CJIS v6.0
+        - Other Sector Mandate
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data_domain
+    attributes:
+      label: Primary Data Domain
+      description: Select the primary data domain (`PII`, `PHI`, or `PPI`) for this exemption or validator.
+      options:
+        - PII (Personal Identifiable Information)
+        - PHI (Protected Health Information)
+        - PPI (Payment & Personal Financial Information)
+    validations:
+      required: true
+
+  - type: input
+    id: citation
+    attributes:
+      label: Formal Legal / Regulatory Citation & Code
+      description: Provide the exact statutory or regulatory citation to print on redaction certificates.
+      placeholder: "e.g., Cal. Civ. Code § 1798.140(v) (CCPA/CPRA Sensitive Personal Information) or GDPR Art. 9(1)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: entity_description
+    attributes:
+      label: Protected Entity Description & Detection Logic
+      description: Describe what entities should be redacted (and any public-official or role allowlists that should be excluded). If proposing a Tier 1 deterministic validator, include the regex or checksum algorithm (such as Luhn or Mod-10).
+      placeholder: |
+        Entity Type: ...
+        Deterministic Regex / Checksum (if applicable): ...
+        Contextual Gemma 4 E4B Rule (if applicable): ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: synthetic_examples
+    attributes:
+      label: Synthetic Positive & Negative Test Cases
+      description: Provide 2-3 synthetic strings that SHOULD be redacted and 1-2 synthetic strings that SHOULD NOT be redacted.
+      placeholder: |
+        Should Redact (Positive):
+        - "Patient Medicare Beneficiary ID: 1EG4-TE5-MK72"
+
+        Should Ignore (Negative):
+        - "Invoice Reference: INV-2026-0041"
+    validations:
+      required: true

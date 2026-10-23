@@ -1,0 +1,39 @@
+title: "[Idea]: "
+labels: ["idea", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share an architectural idea, Multi-OS packaging proposal (`macOS`, `Windows`, `Linux`, `Docker`), or on-device model integration for **Blackmarker Studio**!
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Idea Category
+      description: What area of Blackmarker Studio does your idea focus on?
+      options:
+        - Multi-OS Desktop & Server Packaging (Windows .exe/.msi, Linux .AppImage/.deb/.rpm, Docker)
+        - On-Device SLM & Multimodal Vision (Google Gemma 4 E4B, llama.cpp, Metal/CUDA/Vulkan, OCR)
+        - Compliance Frameworks & Regulatory Packs (FOIA, HIPAA, PCI DSS, GLBA, GDPR, CCPA, FERPA)
+        - Interactive Review UI (macOS SwiftUI Studio / Web HITL PDF.js / Manual Blackmarker Marquee)
+        - PikePDF / QPDF Stream Sanitization & Forensic Verification
+        - Redaction Certificates & Audit Workflows (Polars / ReportLab)
+    validations:
+      required: true
+
+  - type: textarea
+    id: pitch
+    attributes:
+      label: Summary & Motivation
+      description: Describe your idea and the problem or opportunity it addresses for compliance reviewers, clerks, or engineers.
+      placeholder: "What workflow would this unlock or simplify?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: design
+    attributes:
+      label: Technical Approach & Air-Gapped Considerations
+      description: How could this be implemented while keeping Blackmarker Studio 100% air-gapped with zero external network egress?
+    validations:
+      required: false

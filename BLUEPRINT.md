@@ -129,9 +129,9 @@ Blackmarker Studio natively indexes and cites Virginia Code, Federal FOIA, HIPAA
 - Secure 2 Letters of Intent (LOIs) from Virginia municipal stakeholders (such as a county clerk's office, school board administrative team, or regional law enforcement agency).
 - Exit Gate: Formal submission of VIPC CCF application; active beta testing with pilot partners.
 
-### Phase 4: Production Hardening & Commercial Release (Weeks 12 - 16)
-- Package application as a turnkey native macOS bundle (`Blackmarker Studio.app`) and an isolated Docker container for municipal IT deployments.
-- Integrate non-destructive Apple Vision and local OCR pipelines for degraded facsimile and scan inputs.
+### Phase 4: Production Hardening, Multi-OS Packaging & Commercial Release (Weeks 12 - 16)
+- Package application as a turnkey native macOS bundle (`Blackmarker Studio.app`), standalone Windows 10/11 installer (`.exe` / `.msi`), Linux desktop packages (`.AppImage` / `.deb` / `.rpm`), and an air-gapped `--network=none` OCI/Docker container for municipal and enterprise IT deployments.
+- Integrate non-destructive Apple Vision (`VNRecognizeTextRequest` on macOS) and local ONNX Runtime (`RapidOCR` on Windows/Linux) pipelines for degraded facsimile and scan inputs.
 - Launch commercial small-tier licensing under Virginia Public Procurement Act micro-purchase thresholds.
 
 ---
@@ -202,3 +202,37 @@ Blackmarker Studio natively indexes and cites Virginia Code, Federal FOIA, HIPAA
    - Target 3 Virginia counties (e.g., Campbell, Bedford, Pittsylvania) for zero-cost 60-day air-gapped pilot deployments.
    - Secure 2 Letters of Intent (LOIs) from participating clerks to accompany the $50,000 grant application.
    - Secure formal Legal Opinion Letter validating PikePDF low-level stream excision against statutory public disclosure standards.
+
+---
+
+## 8. Multi-OS Support Architecture & Release Roadmap (`macOS` Today • `Windows` & `Linux` Planned)
+
+> **Current Status (`v0.4.0`):** Blackmarker Studio is **currently built, packaged, and verified on macOS 14+ (Apple Silicon & Intel)** only. Windows and Linux builds have not been packaged or tested yet and are planned for the **`v0.5.0` milestone**.
+
+Because municipal clerks, hospital compliance teams, financial auditors, and enterprise legal departments operate across heterogeneous workstation fleets, Blackmarker Studio separates its **Python sanitization core** from its **OS-native desktop presentation shells** to enable upcoming Windows and Linux releases.
+
+### 8.1 Current macOS Build vs. Planned Multi-OS Roadmap Matrix
+
+| Architectural Layer | macOS 14+ (Apple Silicon & Intel) | Windows 10 / 11 (x64 & ARM64) | Linux Desktop & Server (Ubuntu / Debian / RHEL / WSL2) |
+| :--- | :--- | :--- | :--- |
+| **Build & Verification Status** | **Built & Verified (`v0.4.0` Today)** | **Planned (`v0.5.0` Roadmap)** | **Planned (`v0.5.0` Roadmap)** |
+| **PDF Stream Sanitizer (`pikepdf` / `QPDF`)** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Spatial Geometry (`pdfplumber`) & Polars Engine** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 1 Deterministic Validators (`PII`/`PHI`/`PPI`)** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 2 Google Gemma 4 E4B (`llama-cpp-python`)** | Apple Metal / CPU (`v0.4.0` Today) | Planned AVX2 / NVIDIA CUDA / Vulkan (`v0.5.0`) | Planned AVX2 / CUDA / ROCm / Vulkan (`v0.5.0`) |
+| **CLI (`blackmarker`) & Web HITL (`blackmarker serve`)** | Built & Verified (`v0.4.0`) | Planned Windows Build (`v0.5.0`) | Planned Linux Build (`v0.5.0`) |
+| **Native Desktop App & System Tray Droplet** | `Blackmarker Studio.app` (SwiftUI + `PDFKit` + `MenuBarExtra` - **Today**) | Planned `.exe` / `.msi` (`PyWebView` Edge `WebView2` / `Tauri v2` + `pystray` - **`v0.5.0`**) | Planned `.AppImage` / `.deb` / `.rpm` (`WebKitGTK` + Tray - **`v0.5.0`**) |
+| **Scanned PDF Neural OCR** | Apple `Vision` (`VNRecognizeTextRequest`) + Gemma 4 Vision (**Today**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) |
+
+### 8.2 Versioned Multi-OS & Regulatory Roadmap
+
+- **`v0.4.0` (Current Release - macOS 14+ Only):**
+  - **macOS 14+ (`Blackmarker Studio.app`):** Native SwiftUI desktop studio with `PDFKit`, Apple `Vision` (`VNRecognizeTextRequest`), `MenuBarExtra` quick-scrub droplet, and Apple Metal GPU acceleration.
+  - **`blackmarker` CLI & Local Web HITL Studio (`blackmarker serve`):** Built and verified on macOS with the FastAPI + `PDF.js` review studio, `Shift + Drag` Manual Blackmarker marquee drawing, a-la-carte `PII` / `PHI` / `PPI` selection, and customizable ReportLab compliance certificates.
+- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification & Native Windows / Linux Packaging:**
+  - **Windows 10/11 (`.exe` / `.msi`):** Standalone desktop shell via `PyWebView` (Microsoft Edge `WebView2`) / `Tauri v2` + system tray quick-scrub droplet (`pystray`) + single-binary `PyInstaller` bundle, with `llama-cpp-python` AVX2, NVIDIA CUDA, and Vulkan GPU acceleration, plus local ONNX Runtime (`RapidOCR`) fallback for scanned PDFs.
+  - **Linux Desktop & Server (`.AppImage` / `.deb` / `.rpm` / Docker):** Standalone `WebKitGTK` desktop shell + `.AppImage`, `.deb`, and `.rpm` packages + air-gapped `--network=none` OCI/Docker container image for enterprise Linux servers and Windows WSL2.
+  - **GitHub Actions Multi-OS CI/CD Matrix:** Automated builds, test suites, and zero-residual PDF verification across `macos-latest`, `windows-latest`, and `ubuntu-latest`.
+- **`v0.6.0` (Planned Roadmap) - Expanded Global & State Regulatory Packs:**
+  - Pluggable policy packs for **GDPR** (EU), **CCPA / CPRA** (California), **FERPA**, **CJIS v6.0**, and 50-state FOIA statutory registries.
+

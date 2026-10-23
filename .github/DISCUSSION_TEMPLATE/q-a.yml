@@ -1,0 +1,48 @@
+title: "[Q&A]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help with **Blackmarker Studio** installation, air-gapped deployment, OS compatibility (`macOS`, `Windows`, `Linux`, `WSL2`), or choosing the right compliance profile? Ask the community here!
+        *(Reminder: Never post real `PII`, `PHI`, or `PPI` in public discussions.)*
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System / Environment
+      description: Which platform are you running Blackmarker Studio on?
+      options:
+        - macOS 14+ (Apple Silicon)
+        - macOS 14+ (Intel)
+        - Windows 10/11 (Native Python / uv)
+        - Windows 10/11 (WSL2 / Docker)
+        - Linux (Ubuntu / Debian / Fedora / RHEL)
+        - Air-Gapped / Offline Server Environment
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Question Topic
+      description: Select the closest category for your question.
+      options:
+        - Installation & uv Environment Setup
+        - Air-Gapped Google Gemma 4 E4B GGUF Model Setup & GPU Acceleration
+        - Native macOS Studio (Blackmarker Studio.app) & Menu Bar Droplet
+        - Local Web HITL Studio (blackmarker serve) & Manual Blackmarker Marquee
+        - Compliance Profiles (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, SOC 2) & PII/PHI/PPI Domains
+        - Customizing Redaction Certificates & Attestations
+        - PDF Stream Sanitization & Verification (pikepdf / QPDF)
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Describe what you are trying to accomplish and any commands or logs you have observed.
+      placeholder: "e.g., How do I pre-stage the Google Gemma 4 E4B GGUF weights on an offline Windows 11 or Linux workstation without internet access?"
+    validations:
+      required: true

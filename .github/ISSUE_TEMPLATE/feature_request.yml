@@ -1,0 +1,63 @@
+name: Feature or Packaging Request
+description: Propose a new feature, Multi-OS desktop packaging target (Windows / Linux / Docker), or UI/UX improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to improve **Blackmarker Studio** across macOS, Windows, Linux, or the core sanitization pipeline? Fill out the form below!
+
+  - type: input
+    id: summary
+    attributes:
+      label: Feature Title / Summary
+      description: Concise summary of the proposed feature or enhancement.
+      placeholder: "e.g., Add Windows 11 system tray quick-scrub droplet via pystray and WebView2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Target Layer / Platform
+      description: Which area of Blackmarker Studio does this proposal target?
+      options:
+        - Multi-OS Packaging - Windows 10/11 (.exe / .msi / WebView2 / Tauri / CUDA)
+        - Multi-OS Packaging - Linux Desktop & Server (.AppImage / .deb / .rpm / WebKitGTK / Docker)
+        - macOS Native Studio (SwiftUI / PDFKit / MenuBarExtra / Apple Vision OCR)
+        - Web HITL Studio (FastAPI / PDF.js Canvas / Manual Blackmarker Marquee)
+        - Core Sanitization & Geometry Engine (PikePDF / QPDF / pdfplumber)
+        - Tier 2 On-Device AI & OCR (Google Gemma 4 E4B / RapidOCR / ONNX)
+        - Redaction Certificates & Audit Exports (Polars / ReportLab)
+        - CLI & Batch Automation (blackmarker CLI)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement / Use Case
+      description: What workflow challenge or operational need does this feature solve?
+      placeholder: "e.g., Municipal clerks on Windows 11 workstations need a standalone installer that bundles the Web HITL Studio without requiring manual Python setup..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution & Technical Design
+      description: Describe how you envision this feature working while preserving 100% air-gapped operation.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Architectural Alignment
+      description: Confirm this proposal aligns with Blackmarker Studio core mandates.
+      options:
+        - label: Preserves 100% air-gapped execution (zero external cloud API dependencies)
+          required: true
+        - label: Uses PikePDF / QPDF for any PDF stream manipulation (no PyMuPDF / fitz)
+          required: true

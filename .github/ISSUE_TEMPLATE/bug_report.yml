@@ -1,0 +1,113 @@
+name: Bug Report
+description: Report a bug in PDF stream sanitization, entity detection, CLI, Web HITL Studio, or native desktop app.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue in **Blackmarker Studio**!
+        **Privacy Warning:** Never upload or paste real unredacted `PII`, `PHI`, or `PPI` in a public issue. Always use synthetic sample text or run `uv run python scripts/generate_synthetic_pdfs.py` to reproduce the issue.
+        *(If you discovered a security bypass where redacted PDF bytes remain recoverable, please report it privately via `Security -> Report a vulnerability` instead.)*
+
+  - type: input
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: A concise one-sentence description of the issue.
+      placeholder: "e.g., Manual Blackmarker marquee box on rotated landscape PDF page offsets y-coordinates by 90 degrees"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component / Layer
+      description: Which part of Blackmarker Studio is affected?
+      options:
+        - Core Engine (Spatial Geometry / Font Normalizer / Pipeline)
+        - Compliance & Statutes Registry (FOIA / HIPAA / PCI DSS / GLBA / FRCP 5.2 / SOC 2)
+        - Tier 1 Deterministic Engine (Regex / Luhn / Mod-10 / PII-PHI-PPI Validators)
+        - Tier 2 Cognitive & Vision Engine (Google Gemma 4 E4B / llama.cpp / Worker)
+        - PikePDF Sanitizer (Tj/TJ Stream Excision / Vector Burn-In / XMP Wipe)
+        - Redaction Certificate Generator (Polars / ReportLab PDF Presets)
+        - macOS Native Studio (SwiftUI / PDFKit / MenuBarExtra / Vision OCR)
+        - Web HITL Studio & FastAPI Server (blackmarker serve / PDF.js Canvas)
+        - CLI (blackmarker redact / audit / inspect / statutes)
+        - Windows / Linux / Docker Packaging
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: Select the operating system where the bug occurred.
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows 10/11
+        - Linux (Ubuntu/Debian/Fedora)
+        - Docker / WSL2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Compliance Profile
+      description: Which compliance profile was active when the issue occurred?
+      options:
+        - public_foia (Federal & State FOIA)
+        - hipaa (HIPAA Safe Harbor 45 CFR 164.514)
+        - pci_dss (PCI DSS v4.0 Cardholder Data)
+        - glba (GLBA Financial Privacy)
+        - frcp_5_2 (Federal Rule of Civil Procedure 5.2)
+        - aicpa_soc2 (AICPA SOC 2 CC6.1 / P4.2)
+        - strict_privacy (Maximum Multi-Domain Sanitization)
+        - law_enforcement (Criminal Justice / Victim-Witness Protection)
+        - environmental_review (Environmental & Critical Habitat)
+        - Not Applicable / UI or Build Issue
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: domains
+    attributes:
+      label: Active Data Domains
+      description: Check all data domains that were enabled during the run.
+      options:
+        - label: "`PII` (Personal Identifiable Information)"
+        - label: "`PHI` (Protected Health Information - HIPAA)"
+        - label: "`PPI` (Payment & Personal Financial Information - PCI DSS / GLBA)"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Provide exact CLI commands or UI steps to reproduce the behavior using synthetic data.
+      placeholder: |
+        1. Run `uv run blackmarker redact sample_clinical.pdf --profile hipaa --domains PII,PHI`
+        2. Open output PDF or inspect terminal traceback...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_vs_actual
+    attributes:
+      label: Expected vs. Actual Behavior
+      description: What did you expect to happen, and what actually happened instead?
+      placeholder: |
+        Expected: Token excised from content stream and replaced with opaque vector rectangle.
+        Actual: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: inspect_output
+    attributes:
+      label: PDF Structure / `blackmarker inspect` & Environment Output
+      description: Paste the output of `uv run blackmarker inspect <file.pdf>`, `uv run pytest`, or relevant stack traces.
+      render: shell
+    validations:
+      required: false

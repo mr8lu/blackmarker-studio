@@ -1,0 +1,38 @@
+title: "[Show & Tell]: "
+labels: ["show-and-tell"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Built a custom compliance workflow, redaction certificate template, batch sanitization pipeline, or hardware benchmark with **Blackmarker Studio**? Share it with the community!
+        *(Please ensure all shared screenshots, PDFs, and logs use 100% synthetic data.)*
+
+  - type: dropdown
+    id: showcase_type
+    attributes:
+      label: What Are You Sharing?
+      options:
+        - Custom Compliance Workflow (FOIA / HIPAA / PCI DSS / GLBA / Judicial / SOC 2)
+        - Custom Redaction Certificate Preset & Branding
+        - Hardware & Inference Benchmark (Apple Metal / NVIDIA CUDA / Vulkan / CPU)
+        - Multi-OS Deployment Setup (macOS / Windows / Linux / Air-Gapped Docker)
+        - Custom Statutory / Tier 1 Deterministic Extension
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS & Hardware Setup
+      description: Share your operating system, CPU/GPU, and Blackmarker Studio interface (macOS Studio, Web HITL, or CLI).
+      placeholder: "e.g., macOS 15 on M3 Max (64GB) running Blackmarker Studio.app with Gemma 4 E4B Q4_K_M"
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Workflow Details, Benchmarks, or Screenshots
+      description: Walk through how you configured Blackmarker Studio, what throughput or results you achieved, and any tips for other practitioners.
+    validations:
+      required: true
