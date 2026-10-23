@@ -7,19 +7,23 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
 
-# Data directory
+# Local runtime & synthetic data directory (untracked; auto-generated on first run)
 data/
+/data/
 /data
 
 # Model weights & large binaries
+models/*.gguf
+models/*.bin
 
-# System & Cache
+# macOS Finder & System Cache (never commit .DS_Store)
 .DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
 .pytest_cache/
 *.swp
 .build/
 .swiftpm/
-
-

@@ -12,11 +12,12 @@ MACOS_DIR="${CONTENTS_DIR}/MacOS"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 
-echo "[1/5] Generating Apple HIG AppIcon.icns..."
+echo "[1/5] Generating Apple HIG AppIcon.icns & synthetic sample PDFs..."
 cd "${ROOT_DIR}"
 if [[ ! -f "${ROOT_DIR}/assets/icon/AppIcon.icns" ]]; then
     uv run python scripts/generate_app_icon.py
 fi
+uv run python scripts/generate_synthetic_pdfs.py
 
 echo "[2/5] Building SwiftUI Blackmarker Studio (Release)..."
 swift build -c release --product RedactGovApp

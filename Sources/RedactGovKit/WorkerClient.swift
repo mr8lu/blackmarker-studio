@@ -127,6 +127,10 @@ public actor WorkerClient {
         return process.isRunning
     }
 
+    public func ping() async throws {
+        _ = try await sendRequest(method: "ping", params: [:])
+    }
+
     public func inspectDocument(pdfURL: URL) async throws -> DocumentInspectionPayload {
         let params: [String: Any] = ["input_pdf": pdfURL.path]
         let data = try await sendRequest(method: "inspect", params: params)

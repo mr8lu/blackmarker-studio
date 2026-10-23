@@ -119,6 +119,13 @@ public final class AppViewModel: ObservableObject {
         self.indexStore = CaseIndexStore()
         self.docketEntries = indexStore.searchDocket(query: "")
         discoverSyntheticSamples()
+        if syntheticSamples.isEmpty {
+            Task { [weak self] in
+                guard let self else { return }
+                try? await self.workerClient.ping()
+                self.discoverSyntheticSamples()
+            }
+        }
     }
 
     public var enabledDomainStrings: [String] {

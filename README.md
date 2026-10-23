@@ -161,6 +161,9 @@ cd blackmarker-studio
 
 # Create isolated .venv and install all core dependencies via uv
 uv sync --reinstall
+
+# Generate synthetic test & demo PDFs into ./data/synthetic_corpus/ (untracked in git; also auto-generated on first run)
+uv run python scripts/generate_synthetic_pdfs.py
 ```
 
 ### Step 2: Optional On-Device Google Gemma 4 E4B Setup

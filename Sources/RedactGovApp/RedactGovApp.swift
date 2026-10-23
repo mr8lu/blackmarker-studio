@@ -67,7 +67,9 @@ struct RedactGovMacApp: App {
                     throw WorkerError.malformedResponse("WorkspaceResolver returned '/' instead of valid root.")
                 }
                 let client = WorkerClient(workspaceRoot: rootURL)
-                let samplePDF = rootURL.appendingPathComponent("data/synthetic_corpus/01_police_incident_report.pdf")
+                try await client.ping()
+
+                let samplePDF = rootURL.appendingPathComponent("data/synthetic_corpus/police_incident_narrative.pdf")
                 if FileManager.default.fileExists(atPath: samplePDF.path) {
                     let inspection = try await client.inspectDocument(pdfURL: samplePDF)
                     guard inspection.totalPages >= 1 else {
@@ -90,8 +92,8 @@ struct RedactGovMacApp: App {
                     if let cPath = quickRes.result.certificatePath {
                         try? FileManager.default.removeItem(atPath: cPath)
                     }
-                    await client.suspendWorker()
                 }
+                await client.suspendWorker()
 
                 print("REDACTGOV_NATIVE_SELFTEST_OK")
             } catch {
