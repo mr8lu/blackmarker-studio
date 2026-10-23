@@ -175,6 +175,8 @@ Blackmarker Studio natively indexes and cites Virginia Code, Federal FOIA, HIPAA
 | **Multimodal Vision & Scanned Records** | Digital + Apple Vision OCR + Gemma 4 Vision | Gemma 4 E4B Native Vision (`mmproj`) | **P0 (Complete)** | Active on image-only pages (<20 chars), signatures, and handwritten notes. |
 | **Human-in-the-Loop UI** | Native macOS SwiftUI + FastAPI Web HITL | Visual PDFKit & HTML5 review canvas | **P0 (Complete)** | Interactive canvas overlay to approve, modify, or `Shift + Drag` redaction boxes. |
 | **Air-Gapped Packaging** | Native `Blackmarker Studio.app` + `uv` CLI | Single-click desktop / Docker bundle | **P1 (Complete)** | Packaged via `./build.sh` (`Blackmarker Studio.app`) with ephemeral worker. |
+| **macOS Finder Right-Click Quick Action** | `MenuBarExtra` droplet + Studio UI | Finder Contextual Quick Action (`NSServices` / Action Extension) | **P1 (Planned)** | On macOS right-click Quick Action for instant PDF redaction with quick profile/domain selection (`PII`, `PHI`, `PPI`). |
+| **Sector Policy Hierarchy** | Unified profile selector | Concise Public vs. Private Sector policy taxonomy | **P1 (Planned)** | Separate Public Sector (FOIA, PII, victim names, sensitive info, purchases, regulatory requirements) and Private Sector (Banking, Lifescience/Healthcare) policies. |
 | **Async Processing Queue** | Ephemeral stdio JSON-RPC worker | Chunked background processing | **P1 (Active)** | Stream large docs (100-500+ pages) with idle VRAM watchdog unloading. |
 | **Model Distribution** | Standalone HF download script | Pre-bundled quantized weights | **P2 (Operational)** | Pre-package `gemma-4-e4b-it-Q4_K_M.gguf` + `mmproj` in installer. |
 
@@ -229,7 +231,9 @@ Because municipal clerks, hospital compliance teams, financial auditors, and ent
 - **`v0.4.0` (Current Release - macOS 14+ Only):**
   - **macOS 14+ (`Blackmarker Studio.app`):** Native SwiftUI desktop studio with `PDFKit`, Apple `Vision` (`VNRecognizeTextRequest`), `MenuBarExtra` quick-scrub droplet, and Apple Metal GPU acceleration.
   - **`blackmarker` CLI & Local Web HITL Studio (`blackmarker serve`):** Built and verified on macOS with the FastAPI + `PDF.js` review studio, `Shift + Drag` Manual Blackmarker marquee drawing, a-la-carte `PII` / `PHI` / `PPI` selection, and customizable ReportLab compliance certificates.
-- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification & Native Windows / Linux Packaging:**
+- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification, macOS Finder Quick Action & Native Windows / Linux Packaging:**
+  - **macOS Finder Right-Click Quick Action:** Native macOS Finder contextual Quick Action ("Redact with Blackmarker Studio") allowing right-click redaction directly on PDF files in Finder with quick selection of redaction profile and domains (`PII`, `PHI`, `PPI`).
+  - **Concise Public vs. Private Sector Policy Separation:** Streamlined two-track policy selector separating **Public Sector** (PII, FOIA, victim names, sensitive information, purchases, regulatory requirements) and **Private Sector** (Banking/GLBA/PCI DSS, Lifescience & Healthcare/HIPAA) policies for a concise, user-friendly workflow.
   - **Windows 10/11 (`.exe` / `.msi`):** Standalone desktop shell via `PyWebView` (Microsoft Edge `WebView2`) / `Tauri v2` + system tray quick-scrub droplet (`pystray`) + single-binary `PyInstaller` bundle, with `llama-cpp-python` AVX2, NVIDIA CUDA, and Vulkan GPU acceleration, plus local ONNX Runtime (`RapidOCR`) fallback for scanned PDFs.
   - **Linux Desktop & Server (`.AppImage` / `.deb` / `.rpm` / Docker):** Standalone `WebKitGTK` desktop shell + `.AppImage`, `.deb`, and `.rpm` packages + air-gapped `--network=none` OCI/Docker container image for enterprise Linux servers and Windows WSL2.
   - **GitHub Actions Multi-OS CI/CD Matrix:** Automated builds, test suites, and zero-residual PDF verification across `macos-latest`, `windows-latest`, and `ubuntu-latest`.

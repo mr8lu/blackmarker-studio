@@ -20,7 +20,7 @@ public enum WorkspaceResolver {
             return URL(fileURLWithPath: plistRoot, isDirectory: true)
         }
 
-        // 3. Relative to build/RedactGov.app bundle location
+        // 3. Relative to build/Blackmarker Studio.app bundle location
         let bundleURL = Bundle.main.bundleURL
         if bundleURL.pathExtension == "app" {
             let candidateRepo = bundleURL
@@ -274,7 +274,7 @@ public actor WorkerClient {
     }
 
     private func resolveHelperCommand() throws -> (URL, [String], URL) {
-        // 1. Check bundled Contents/Helpers/redactgov-worker inside RedactGov.app
+        // 1. Check bundled Contents/Helpers/redactgov-worker inside Blackmarker Studio.app
         if let execURL = Bundle.main.executableURL {
             let contentsDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
             let bundledHelper = contentsDir

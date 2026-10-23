@@ -297,7 +297,9 @@ Because the underlying Python sanitization engine (`pikepdf`/`QPDF`, `pdfplumber
 - **`v0.4.0` (Current Release - macOS 14+ Only):**
   - **macOS 14+ (`Blackmarker Studio.app`):** Native SwiftUI desktop studio, `PDFKit` annotation canvas, Apple `Vision` (`VNRecognizeTextRequest`) neural OCR, `MenuBarExtra` status bar quick-scrub droplet, and Apple Metal GPU acceleration.
   - **`blackmarker` CLI & Local Web HITL Studio (`blackmarker serve`):** Built and verified on macOS with `PDF.js` interactive review canvas, `Shift + Drag` Manual Blackmarker marquee drawing, a-la-carte `PII` / `PHI` / `PPI` toggles, and ReportLab compliance certificates.
-- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification & Native Windows / Linux Packaging:**
+- **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification, macOS Finder Quick Action & Native Windows / Linux Packaging:**
+  - **macOS Finder Right-Click Quick Action:** On macOS right-click Quick Action for instant PDF redaction directly from Finder, allowing quick selection of the target redaction profile (`PII`, `PHI`, `PPI`).
+  - **Public vs. Private Sector Policy Separation:** Concise, user-friendly separation of **Public Sector** (PII, FOIA, victim names, sensitive information, purchases, regulatory requirements) and **Private Sector** (Banking, Lifescience & Healthcare) policies.
   - **Windows 10/11 (`.exe` / `.msi`):** Standalone desktop shell via `PyWebView` (Microsoft Edge `WebView2`) / `Tauri v2` + system tray quick-scrub droplet (`pystray`) + single-binary `PyInstaller` bundle, with `llama-cpp-python` AVX2, NVIDIA CUDA, and Vulkan GPU acceleration, plus local ONNX Runtime (`RapidOCR`) fallback for scanned PDFs.
   - **Linux Desktop & Server (`.AppImage` / `.deb` / `.rpm` / Docker):** Standalone `WebKitGTK` desktop shell + `.AppImage`, `.deb`, and `.rpm` packages + air-gapped `--network=none` OCI/Docker container image for enterprise Linux servers and Windows WSL2.
   - **GitHub Actions Multi-OS CI/CD Matrix:** Automated builds, test runs, and zero-residual PDF verification across `macos-latest`, `windows-latest`, and `ubuntu-latest`.

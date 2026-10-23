@@ -257,14 +257,14 @@ def test_native_macos_bundle_self_test() -> None:
     app_exec = (
         Path(__file__).resolve().parent.parent
         / "build"
-        / "RedactGov.app"
+        / "Blackmarker Studio.app"
         / "Contents"
         / "MacOS"
         / "RedactGovApp"
     )
     if not app_exec.exists():
         return
-    # Simulate macOS LaunchServices ('open build/RedactGov.app') where cwd is '/'
+    # Simulate macOS LaunchServices ('open "build/Blackmarker Studio.app"') where cwd is '/'
     res = subprocess.run(
         [str(app_exec), "--self-test"],
         cwd="/",

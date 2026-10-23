@@ -5,8 +5,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 APP_BUNDLE="${BUILD_DIR}/Blackmarker Studio.app"
-AI_LEGACY_BUNDLE="${BUILD_DIR}/AI Blackmarker.app"
-LEGACY_BUNDLE="${BUILD_DIR}/RedactGov.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
@@ -25,7 +23,7 @@ swift build -c release --product RedactGovApp
 BIN_PATH="$(swift build -c release --show-bin-path)/RedactGovApp"
 
 echo "[3/5] Assembling Blackmarker Studio.app bundle structure..."
-rm -rf "${APP_BUNDLE}" "${AI_LEGACY_BUNDLE}" "${LEGACY_BUNDLE}"
+rm -rf "${APP_BUNDLE}" "${BUILD_DIR}/AI Blackmarker.app" "${BUILD_DIR}/RedactGov.app"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${BIN_PATH}" "${MACOS_DIR}/RedactGovApp"
@@ -88,8 +86,6 @@ EOF
 
 echo "[5/5] Ad-hoc signing ${APP_BUNDLE}..."
 codesign --force --deep --sign - "${APP_BUNDLE}"
-cp -R "${APP_BUNDLE}" "${AI_LEGACY_BUNDLE}"
-cp -R "${APP_BUNDLE}" "${LEGACY_BUNDLE}"
 
 echo "Built native macOS bundle: ${APP_BUNDLE}"
 echo "Launch with: open \"${APP_BUNDLE}\""

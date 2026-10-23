@@ -57,6 +57,7 @@ public final class CaseIndexStore: @unchecked Sendable {
         );
         CREATE INDEX IF NOT EXISTS idx_docket_statute ON docket_redactions(statute_code);
         CREATE INDEX IF NOT EXISTS idx_docket_doc ON docket_redactions(document_name);
+        UPDATE docket_redactions SET entity_text = '[REDACTED]' WHERE entity_text != '[REDACTED]';
         """
         sqlite3_exec(db, schemaSQL, nil, nil, nil)
     }
@@ -79,7 +80,11 @@ public final class CaseIndexStore: @unchecked Sendable {
         let now = ISO8601DateFormatter().string(from: Date())
         let sqlTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+        var seenPages = Set<Int>()
         for entity in plan.entities where entity.approved {
+            guard seenPages.insert(entity.pageNumber).inserted else {
+                continue
+            }
             var stmt: OpaquePointer?
             guard sqlite3_prepare_v2(db, insertSQL, -1, &stmt, nil) == SQLITE_OK else {
                 continue
@@ -93,7 +98,8 @@ public final class CaseIndexStore: @unchecked Sendable {
             } else {
                 sqlite3_bind_null(stmt, 3)
             }
-            sqlite3_bind_text(stmt, 4, entity.text, -1, sqlTransient)
+            // Never persist raw sensitive PII/PHI/PPI text in the docket history store
+            sqlite3_bind_text(stmt, 4, "[REDACTED]", -1, sqlTransient)
             sqlite3_bind_text(stmt, 5, entity.category, -1, sqlTransient)
             sqlite3_bind_text(stmt, 6, entity.statuteCode, -1, sqlTransient)
             sqlite3_bind_int(stmt, 7, Int32(entity.pageNumber))
@@ -113,7 +119,7 @@ public final class CaseIndexStore: @unchecked Sendable {
         let sql: String
         if trimmed.isEmpty {
             sql = """
-            SELECT id, document_name, output_path, certificate_path, entity_text,
+            SELECT id, document_name, output_path, certificate_path,
                    category, statute_code, page_number, verified_zero_residual, created_at
             FROM docket_redactions
             ORDER BY id DESC
@@ -121,10 +127,10 @@ public final class CaseIndexStore: @unchecked Sendable {
             """
         } else {
             sql = """
-            SELECT id, document_name, output_path, certificate_path, entity_text,
+            SELECT id, document_name, output_path, certificate_path,
                    category, statute_code, page_number, verified_zero_residual, created_at
             FROM docket_redactions
-            WHERE document_name LIKE ? OR entity_text LIKE ? OR statute_code LIKE ? OR category LIKE ?
+            WHERE document_name LIKE ? OR CAST(page_number AS TEXT) LIKE ?
             ORDER BY id DESC
             LIMIT ?;
             """
@@ -137,29 +143,39 @@ public final class CaseIndexStore: @unchecked Sendable {
         defer { sqlite3_finalize(stmt) }
 
         let sqlTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        let fetchLimit = max(limit * 4, 100)
         if trimmed.isEmpty {
-            sqlite3_bind_int(stmt, 1, Int32(limit))
+            sqlite3_bind_int(stmt, 1, Int32(fetchLimit))
         } else {
             let pattern = "%\(trimmed)%"
             sqlite3_bind_text(stmt, 1, pattern, -1, sqlTransient)
             sqlite3_bind_text(stmt, 2, pattern, -1, sqlTransient)
-            sqlite3_bind_text(stmt, 3, pattern, -1, sqlTransient)
-            sqlite3_bind_text(stmt, 4, pattern, -1, sqlTransient)
-            sqlite3_bind_int(stmt, 5, Int32(limit))
+            sqlite3_bind_int(stmt, 3, Int32(fetchLimit))
         }
 
+        let fm = FileManager.default
         var entries: [DocketAuditEntry] = []
+        var seenFilePages = Set<String>()
         while sqlite3_step(stmt) == SQLITE_ROW {
             let id = sqlite3_column_int64(stmt, 0)
             let docName = Self.columnText(stmt, 1)
             let outPath = Self.columnText(stmt, 2)
             let certPathRaw = Self.columnText(stmt, 3)
-            let entityText = Self.columnText(stmt, 4)
-            let category = Self.columnText(stmt, 5)
-            let statute = Self.columnText(stmt, 6)
-            let page = Int(sqlite3_column_int(stmt, 7))
-            let verified = sqlite3_column_int(stmt, 8) == 1
-            let createdAt = Self.columnText(stmt, 9)
+            let category = Self.columnText(stmt, 4)
+            let statute = Self.columnText(stmt, 5)
+            let page = Int(sqlite3_column_int(stmt, 6))
+            let verified = sqlite3_column_int(stmt, 7) == 1
+            let createdAt = Self.columnText(stmt, 8)
+
+            // Only include entries if the sanitized file is still present on disk
+            guard !outPath.isEmpty, fm.fileExists(atPath: outPath) else {
+                continue
+            }
+
+            let dedupKey = "\(outPath)#\(page)"
+            guard seenFilePages.insert(dedupKey).inserted else {
+                continue
+            }
 
             entries.append(
                 DocketAuditEntry(
@@ -167,7 +183,7 @@ public final class CaseIndexStore: @unchecked Sendable {
                     documentName: docName,
                     outputPath: outPath,
                     certificatePath: certPathRaw.isEmpty ? nil : certPathRaw,
-                    entityText: entityText,
+                    entityText: "[REDACTED]",
                     category: category,
                     statuteCode: statute,
                     pageNumber: page,
@@ -175,6 +191,9 @@ public final class CaseIndexStore: @unchecked Sendable {
                     createdAt: createdAt
                 )
             )
+            if entries.count >= limit {
+                break
+            }
         }
         return entries
     }

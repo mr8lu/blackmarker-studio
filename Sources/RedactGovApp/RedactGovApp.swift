@@ -28,6 +28,8 @@ struct RedactGovMacApp: App {
                 defer { try? FileManager.default.removeItem(at: tempDir) }
 
                 let dbURL = tempDir.appendingPathComponent("selftest_docket.sqlite3")
+                let dummyOutFile = tempDir.appendingPathComponent("selftest_foia_sanitized.pdf")
+                try Data("%PDF-1.4".utf8).write(to: dummyOutFile)
                 let store = CaseIndexStore(databaseURL: dbURL)
                 let dummyPlan = RedactionPlanPayload(
                     documentName: "selftest_foia.pdf",
@@ -48,7 +50,7 @@ struct RedactGovMacApp: App {
                 let dummyResult = RedactionResultPayload(
                     success: true,
                     inputPath: "/tmp/selftest_foia.pdf",
-                    outputPath: "/tmp/selftest_foia_sanitized.pdf",
+                    outputPath: dummyOutFile.path,
                     certificatePath: "/tmp/selftest_foia_cert.pdf",
                     redactedCount: 1,
                     totalPages: 1,
@@ -56,9 +58,16 @@ struct RedactGovMacApp: App {
                     verificationPassed: true
                 )
                 store.recordRedactionRun(plan: dummyPlan, result: dummyResult)
-                let entries = store.searchDocket(query: "3808.1")
-                guard entries.count == 1, entries.first?.entityText == "123-45-6789" else {
+                let entries = store.searchDocket(query: "selftest_foia.pdf")
+                guard entries.count == 1,
+                      entries.first?.documentName == "selftest_foia.pdf",
+                      entries.first?.pageNumber == 1,
+                      entries.first?.entityText == "[REDACTED]" else {
                     throw WorkerError.malformedResponse("CaseIndexStore self-test failed.")
+                }
+                try? FileManager.default.removeItem(at: dummyOutFile)
+                guard store.searchDocket(query: "selftest_foia.pdf").isEmpty else {
+                    throw WorkerError.malformedResponse("CaseIndexStore returned entry after file removal.")
                 }
 
                 // 2. Verify WorkerClient <-> Contents/Helpers/redactgov-worker bridge (even when cwd == "/")
@@ -646,13 +655,13 @@ struct StudioSidebarView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                // 4. FOIA Docket Index (SQLite)
-                SidebarCard(title: "FOIA DOCKET HISTORY", icon: "externaldrive.fill.badge.checkmark") {
+                // 4. File History (SQLite)
+                SidebarCard(title: "FILE HISTORY", icon: "clock.arrow.circlepath") {
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
                             .font(.caption)
                             .foregroundStyle(Color(white: 0.65))
-                        TextField("Search statute, entity, file...", text: $viewModel.docketSearchQuery)
+                        TextField("Search files...", text: $viewModel.docketSearchQuery)
                             .textFieldStyle(.plain)
                             .font(.caption)
                             .onChange(of: viewModel.docketSearchQuery) { _, _ in
@@ -676,40 +685,28 @@ struct StudioSidebarView: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(white: 0.25), lineWidth: 1))
 
                     if viewModel.docketEntries.isEmpty {
-                        Text("No sanitized items recorded yet.")
+                        Text("No recent files found.")
                             .font(.caption)
                             .foregroundStyle(Color(white: 0.62))
                             .padding(.vertical, 4)
                     } else {
                         VStack(spacing: 6) {
                             ForEach(viewModel.docketEntries.prefix(12)) { entry in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text(entry.statuteCode)
-                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                            .foregroundStyle(Color(red: 0.45, green: 0.85, blue: 1.0))
-                                        Spacer()
-                                        Text("p.\(entry.pageNumber)")
-                                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                            .foregroundStyle(Color(white: 0.72))
-                                    }
-                                    Text("\(entry.category.uppercased()): \(entry.entityText)")
+                                HStack(spacing: 8) {
+                                    Text(entry.documentName)
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(.white)
                                         .lineLimit(1)
-                                    HStack {
-                                        Text(entry.documentName)
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(Color(white: 0.62))
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
-                                        Spacer()
-                                        Button("Reveal") {
-                                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: entry.outputPath)])
-                                        }
-                                        .buttonStyle(.link)
-                                        .font(.system(size: 10, weight: .semibold))
+                                        .truncationMode(.middle)
+                                    Spacer()
+                                    Text("p.\(entry.pageNumber)")
+                                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(Color(red: 0.45, green: 0.85, blue: 1.0))
+                                    Button("Reveal") {
+                                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: entry.outputPath)])
                                     }
+                                    .buttonStyle(.link)
+                                    .font(.system(size: 10, weight: .semibold))
                                 }
                                 .padding(7)
                                 .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.13)))
