@@ -1,6 +1,7 @@
 """Complete sovereign redaction pipeline integrating extraction, multi-sector compliance, spatial alignment, and stream sanitization."""
 
 from pathlib import Path
+import re
 import time
 from typing import Any, Dict, Iterable, List, Optional, Union
 import pdfplumber
@@ -14,6 +15,7 @@ from redact_gov.core.criteria import (
     ReleaseProfile,
 )
 from redact_gov.core.geometry import (
+    extract_clean_page_text,
     extract_words_in_bounding_box,
     find_text_bounding_boxes,
     get_document_page_count,
@@ -145,13 +147,15 @@ class RedactionPipeline:
         try:
             total_pages = get_document_page_count(analysis_pdf)
             all_entities: List[RedactionEntity] = []
+            page_entities_map: Dict[int, List[RedactionEntity]] = {}
+            page_texts_map: Dict[int, str] = {}
 
             with (
                 pdfplumber.open(analysis_pdf) as pdf,
                 pikepdf.open(analysis_pdf, attempt_recovery=True) as pike_doc,
             ):
                 for page_idx, page in enumerate(pdf.pages, start=1):
-                    digital_text = page.extract_text(layout=False) or ""
+                    digital_text = extract_clean_page_text(page)
                     page_ocr_spans = ocr_by_page.get(page_idx, [])
                     ocr_text = "\n".join(
                         str(s.get("text", "")).strip()
@@ -163,6 +167,7 @@ class RedactionPipeline:
                         if ocr_text and ocr_text not in digital_text
                         else digital_text
                     )
+                    page_texts_map[page_idx] = page_text
 
                     # 1. Tier 1 Deterministic Fast Path on content stream + Vision OCR
                     raw_tier1 = (
@@ -323,7 +328,86 @@ class RedactionPipeline:
                             seen_keys.add(key)
                             page_entities.append(e)
 
-                    # 4. Spatial Geometry Reconciliation (using active page_obj + Apple Vision OCR fallback)
+                    page_entities_map[page_idx] = page_entities
+
+                # 3b. Document-Level Cross-Page Entity Propagation (ensures subject names & 9+ digit IDs
+                # detected on header/summary pages are never left unredacted on continuation schedules)
+                if total_pages > 1:
+                    known_names: Dict[str, RedactionEntity] = {}
+                    known_digit_ids: Dict[str, RedactionEntity] = {}
+                    for p_ents in page_entities_map.values():
+                        for e in p_ents:
+                            txt = e.text.strip()
+                            if (
+                                e.category in ("applicant_name", "patient_name", "financial_ppi", "juvenile", "victim_witness")
+                                and len(txt) >= 5
+                                and " " in txt
+                            ):
+                                known_names.setdefault(txt.lower(), e)
+                            elif e.category in ("ssn", "ein", "routing_aba", "bank_account"):
+                                digits = "".join(ch for ch in txt if ch.isdigit())
+                                if len(digits) >= 8:
+                                    known_digit_ids.setdefault(digits, e)
+
+                    for page_idx in range(1, total_pages + 1):
+                        p_text = page_texts_map.get(page_idx, "")
+                        if not p_text:
+                            continue
+                        p_ents = page_entities_map.get(page_idx, [])
+                        existing_low = {e.text.strip().lower() for e in p_ents}
+                        existing_digits = {
+                            "".join(ch for ch in e.text if ch.isdigit())
+                            for e in p_ents
+                            if sum(ch.isdigit() for ch in e.text) >= 8
+                        }
+
+                        for name_low, template_ent in known_names.items():
+                            if name_low in existing_low:
+                                continue
+                            # Match exact name (case-insensitive, allowing multiple spaces between first/last name)
+                            name_pat = r"\b" + r"[ \t]+".join(re.escape(w) for w in name_low.split()) + r"\b"
+                            for m in re.finditer(name_pat, p_text, flags=re.IGNORECASE):
+                                matched_val = m.group(0).strip()
+                                if matched_val.lower() not in existing_low:
+                                    existing_low.add(matched_val.lower())
+                                    p_ents.append(
+                                        RedactionEntity(
+                                            text=matched_val,
+                                            category=template_ent.category,
+                                            statute_code=template_ent.statute_code,
+                                            confidence=template_ent.confidence,
+                                            page_number=page_idx,
+                                            tier=template_ent.tier,
+                                            data_domain=template_ent.data_domain,
+                                        )
+                                    )
+
+                        for digits, template_ent in known_digit_ids.items():
+                            if digits in existing_digits:
+                                continue
+                            comb_pat = r"\b" + r"[ \t_-]*".join(re.escape(d) for d in digits) + r"\b"
+                            for m in re.finditer(comb_pat, p_text):
+                                matched_val = m.group(0).strip()
+                                if "_" in matched_val:
+                                    matched_val = "".join(ch for ch in matched_val if ch.isdigit())
+                                existing_digits.add(digits)
+                                p_ents.append(
+                                    RedactionEntity(
+                                        text=matched_val,
+                                        category=template_ent.category,
+                                        statute_code=template_ent.statute_code,
+                                        confidence=template_ent.confidence,
+                                        page_number=page_idx,
+                                        tier=template_ent.tier,
+                                        data_domain=template_ent.data_domain,
+                                    )
+                                )
+                                break
+
+                # 4. Spatial Geometry Reconciliation (using active page_obj + Apple Vision OCR fallback)
+                for page_idx, page in enumerate(pdf.pages, start=1):
+                    page_entities = page_entities_map.get(page_idx, [])
+                    page_ocr_spans = ocr_by_page.get(page_idx, [])
                     for entity in page_entities:
                         if not entity.bounding_boxes:
                             bboxes = find_text_bounding_boxes(
@@ -477,18 +561,18 @@ class RedactionPipeline:
             if e.approved and len(txt) > 2 and not txt.startswith("[Manual") and not txt.startswith("[MANUAL"):
                 entities_by_page.setdefault(e.page_number, []).append(txt)
 
-        # Check 1: Extracted text verification via pdfplumber per page
+        # Check 1: Extracted text verification via pdfplumber per page (including stream runs)
         with pdfplumber.open(output_pdf) as pdf:
             for page_idx, page in enumerate(pdf.pages, start=1):
                 page_targets = entities_by_page.get(page_idx, [])
                 if not page_targets:
                     continue
-                text = page.extract_text() or ""
+                text = extract_clean_page_text(page)
                 for target in page_targets:
                     if target.lower() in text.lower():
                         return False
 
-        # Check 2: Raw bytes verification for high-entropy unique targets (SSN, DL, phone, email, PHI/PPI IDs)
+        # Check 2: Raw bytes verification for high-entropy unique targets (SSN, EIN, DL, phone, email, PHI/PPI IDs)
         raw_bytes = output_pdf.read_bytes()
         for e in entities:
             if not e.approved:
@@ -496,6 +580,7 @@ class RedactionPipeline:
             txt = e.text.strip()
             if e.category in (
                 "ssn",
+                "ein",
                 "driver_license",
                 "phone",
                 "email",
@@ -503,8 +588,10 @@ class RedactionPipeline:
                 "credit_card",
                 "mrn",
                 "npi",
+                "routing_aba",
                 "routing_number",
                 "bank_account",
+                "iban_swift",
                 "iban",
             ):
                 target_b = txt.encode("latin1", errors="ignore")
