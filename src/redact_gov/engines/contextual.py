@@ -386,6 +386,68 @@ class ContextualGemmaEngine:
                         )
                     )
 
+        # 7. Taxpayer / Filer / Proprietor / Form Subject Names & Closely-Held Entities (PII)
+        form_name_exclusion = {
+            "social", "security", "number", "identification", "employer", "schedule",
+            "spouse", "first", "name", "shown", "return", "form", "total", "attach",
+        }
+        taxpayer_patterns = [
+            re.compile(
+                r"(?i)\b(?:Taxpayer\s*Name|Filer\s*Name|Applicant\s*Name|Proprietor\s*Name)[\s:]+([A-Z][a-zA-Z]+(?:[ \t]+[A-Z][a-zA-Z]+){1,2})\b"
+            ),
+            re.compile(
+                r"(?m)^[ \t]*([A-Z][a-zA-Z&]+(?:[ \t]+[A-Z][a-zA-Z.]+){1,3})[ \t]+(?=(?!000|666)\d{3}(?:[- ]|[ \t]{1,4})(?!00)\d{2}(?:[- ]|[ \t]{1,4})(?!0000)\d{4}\b|\d{2}-\d{7}\b)"
+            ),
+        ]
+        for pat in taxpayer_patterns:
+            for m in pat.finditer(text):
+                val = m.group(1).strip()
+                tokens_low = {t.lower().strip(".,:") for t in val.split()}
+                if (
+                    tokens_low & form_name_exclusion
+                    or self._is_allowlisted(val, text)
+                    or self._contains_stop_word(val)
+                ):
+                    continue
+                statute = get_statute_by_category("applicant_name", profile=profile)
+                entities.append(
+                    RedactionEntity(
+                        text=val,
+                        category="applicant_name",
+                        statute_code=statute.code if statute else "VA-2.2-3705.1(10)",
+                        confidence=0.95,
+                        page_number=page_number,
+                        tier="tier2_gemma",
+                        data_domain="PII",
+                    )
+                )
+
+        # 8. Residential Street Addresses & 9-Digit ZIP+4 Mailing Addresses (PII)
+        address_patterns = [
+            re.compile(
+                r"(?i)\b(?!\d+\s+Block\s+of\b)(\d{1,6}[ \t]+(?:[NSEW]\.?[ \t]+)?[A-Z][a-zA-Z0-9.]+(?:[ \t]+[A-Z][a-zA-Z0-9.]+){0,2}[ \t]+(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Ln|Lane|Ct|Court|Way|Pl(?:ace)?|Pkwy|Cir(?:cle)?)\b(?:,?[ \t]+(?:Apt\.?|Unit|Ste\.?|Suite|#)[ \t]*[A-Za-z0-9-]+|[ \t]+\d{1,5})?)"
+            ),
+            re.compile(
+                r"\b([A-Z][a-zA-Z]+(?:[ \t]+[A-Z][a-zA-Z]+)?,?[ \t]+[A-Z]{2}[ \t]+\d{5}(?:-\d{4}|\d{4}))\b"
+            ),
+        ]
+        for pat in address_patterns:
+            for m in pat.finditer(text):
+                val = m.group(1).strip()
+                if not self._is_allowlisted(val, text):
+                    statute = get_statute_by_category("street_address", profile=profile)
+                    entities.append(
+                        RedactionEntity(
+                            text=val,
+                            category="street_address",
+                            statute_code=statute.code if statute else "VA-2.2-3705.1(10)",
+                            confidence=0.94,
+                            page_number=page_number,
+                            tier="tier2_gemma",
+                            data_domain="PII",
+                        )
+                    )
+
         return entities
 
     def _contains_stop_word(self, name_candidate: str) -> bool:

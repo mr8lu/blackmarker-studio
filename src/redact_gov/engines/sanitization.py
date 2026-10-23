@@ -1,20 +1,94 @@
-"""Surgical PDF stream sanitization engine powered by PikePDF and QPDF."""
+"""PikePDF (QPDF) Low-Level Content Stream Surgery and Metadata Eradication Engine."""
 
 from pathlib import Path
 import re
-from typing import List, Tuple
+from typing import Dict, List, Set, Tuple
 import pikepdf
-from pikepdf import Array, Dictionary, Name, Operator, String
 
 from redact_gov.core.models import BoundingBox, RedactionEntity
 from redact_gov.core.normalizer import DocumentNormalizer, silence_parser_warnings
 
 
-class PikePdfSanitizer:
-    """Performs true low-level PDF stream surgery: glyph excision, canvas burn-in, and metadata wipe."""
+def _parse_tounicode_cmap(cmap_text: str) -> Dict[str, bytes]:
+    """Parse a PDF /ToUnicode CMap stream into a mapping of Unicode characters to raw CID bytes."""
+    char_to_cid: Dict[str, bytes] = {}
+    for block in re.findall(r"beginbfchar(.*?)endbfchar", cmap_text, flags=re.DOTALL):
+        for src_hex, dst_hex in re.findall(
+            r"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>", block
+        ):
+            try:
+                cid_bytes = bytes.fromhex(src_hex)
+                uni_str = bytes.fromhex(dst_hex).decode("utf-16-be", errors="ignore")
+                if len(uni_str) == 1:
+                    char_to_cid[uni_str] = cid_bytes
+            except Exception:
+                pass
+    for block in re.findall(r"beginbfrange(.*?)endbfrange", cmap_text, flags=re.DOTALL):
+        for m in re.finditer(
+            r"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>", block
+        ):
+            try:
+                start_cid = int(m.group(1), 16)
+                end_cid = int(m.group(2), 16)
+                start_uni = int(m.group(3), 16)
+                byte_len = max(1, len(m.group(1)) // 2)
+                for offset in range(min(512, end_cid - start_cid + 1)):
+                    cid_b = (start_cid + offset).to_bytes(byte_len, "big")
+                    uch = chr(start_uni + offset)
+                    char_to_cid[uch] = cid_b
+            except Exception:
+                pass
+    if " " not in char_to_cid and "\xa0" in char_to_cid:
+        char_to_cid[" "] = char_to_cid["\xa0"]
+    return char_to_cid
 
-    def __init__(self) -> None:
-        silence_parser_warnings()
+
+def _extract_page_tounicode_cmaps(page: pikepdf.Page) -> List[Dict[str, bytes]]:
+    """Extract all /ToUnicode character-to-CID maps from a page's Font resources."""
+    cmaps: List[Dict[str, bytes]] = []
+    try:
+        res = page.get("/Resources")
+        if not res:
+            return cmaps
+        fonts = res.get("/Font")
+        if isinstance(fonts, pikepdf.Dictionary):
+            for _, font_obj in fonts.items():
+                if isinstance(font_obj, pikepdf.Dictionary) and "/ToUnicode" in font_obj:
+                    tu = font_obj["/ToUnicode"]
+                    if isinstance(tu, pikepdf.Stream):
+                        cmap_text = tu.read_bytes().decode("latin1", errors="ignore")
+                        parsed = _parse_tounicode_cmap(cmap_text)
+                        if parsed:
+                            cmaps.append(parsed)
+    except Exception:
+        pass
+    return cmaps
+
+
+def _mul_matrix(m1: List[float], m2: List[float]) -> List[float]:
+    """Multiply two 3x3 PDF affine transformation matrices [a, b, c, d, e, f]."""
+    a1, b1, c1, d1, e1, f1 = m1
+    a2, b2, c2, d2, e2, f2 = m2
+    return [
+        a1 * a2 + b1 * c2,
+        a1 * b2 + b1 * d2,
+        c1 * a2 + d1 * c2,
+        c1 * b2 + d1 * d2,
+        e1 * a2 + f1 * c2 + e2,
+        e1 * b2 + f1 * d2 + f2,
+    ]
+
+
+class PikePdfSanitizer:
+    """
+    True PDF redaction engine backed by pikepdf (QPDF).
+    Performs content-stream glyph excision (`Tj`/`TJ` operator scrubbing),
+    draws opaque black vector rectangles over target coordinates,
+    and strips all XMP/DocInfo metadata and incremental revisions.
+    """
+
+    def __init__(self, auto_normalize: bool = True):
+        self.auto_normalize = auto_normalize
         self.normalizer = DocumentNormalizer()
 
     def sanitize_document(
@@ -25,483 +99,383 @@ class PikePdfSanitizer:
         eradicate_metadata: bool = True,
         repair_imperfect: bool = True,
     ) -> Tuple[bool, int]:
-        """Perform surgical sanitization on the PDF."""
+        """
+        Execute true physical sanitization on input_pdf and write clean PDF to output_pdf.
+        Automatically repairs structural/font defects in imperfect PDFs prior to stream surgery.
+        Returns (success, redacted_entity_count).
+        """
         silence_parser_warnings()
         output_pdf.parent.mkdir(parents=True, exist_ok=True)
+        approved_entities = [e for e in entities if e.approved]
+
+        # Group target strings and bounding boxes by 1-indexed page number
+        targets_by_page = {}
+        boxes_by_page = {}
+        for entity in approved_entities:
+            p = entity.page_number
+            txt = entity.text.strip()
+            # Manual marquee redactions starting with "[Manual" rely on spatial boxes or enriched words
+            if txt and not txt.startswith("[Manual") and not txt.startswith("[MANUAL"):
+                targets_by_page.setdefault(p, set()).add(txt)
+            for box in entity.bounding_boxes:
+                boxes_by_page.setdefault(box.page, []).append(box)
+
         applied_count = 0
 
-        # Group entities by page number (1-based)
-        entities_by_page = {}
-        for entity in entities:
-            if not entity.approved:
-                continue
-            entities_by_page.setdefault(entity.page_number, []).append(entity)
-
-        with pikepdf.open(input_pdf, attempt_recovery=True, suppress_warnings=True) as pdf:
-            # 0. Heal font descriptors & structures if handling imperfect document
-            if repair_imperfect:
+        with pikepdf.open(input_pdf, attempt_recovery=True) as pdf:
+            # 0. Pre-sanitization normalization for imperfect PDFs (broken FontBBox, unreferenced streams)
+            if self.auto_normalize and repair_imperfect:
                 self.normalizer.repair_font_descriptors(pdf)
 
-            # 1. Process each page
             for page_idx, page in enumerate(pdf.pages, start=1):
-                page_entities = entities_by_page.get(page_idx, [])
-                if not page_entities:
+                page_targets = list(targets_by_page.get(page_idx, []))
+                page_boxes = boxes_by_page.get(page_idx, [])
+
+                if not page_targets and not page_boxes:
                     continue
 
-                # Collect all target strings including sub-lines and coordinate numbers
-                target_strings = []
-                for e in page_entities:
-                    txt = e.text.strip()
-                    if txt and not txt.startswith("[Manual"):
-                        target_strings.append(txt)
-                        if "\n" in txt:
-                            for sub in txt.splitlines():
-                                if len(sub.strip()) > 1:
-                                    target_strings.append(sub.strip())
-                        if e.category == "manual_redaction" or e.tier == "manual_blackmarker":
-                            for word in txt.split():
-                                w_clean = word.strip()
-                                if len(w_clean) >= 2 and w_clean not in target_strings:
-                                    target_strings.append(w_clean)
-                        # Extract numeric coordinates if present (e.g. 37.339070 from 37.339070° LAT.)
-                        for num in re.findall(r"\b\d{1,3}\.\d{4,8}\b", txt):
-                            if num not in target_strings:
-                                target_strings.append(num)
-                        # Extract 7-digit local phone if present (e.g. 847-7796 from (434)847-7796)
-                        phone_m = re.search(r"\b\d{3}[-.]\d{4}\b", txt)
-                        if phone_m and phone_m.group(0) not in target_strings:
-                            target_strings.append(phone_m.group(0))
+                # 1. Excise matching text strings and spatially-contained glyphs from page content stream
+                excised = self._excise_page_content_streams(
+                    pdf, page, page_targets, page_boxes
+                )
+                applied_count += max(excised, len(page_targets), len(page_boxes))
 
-                # Collect all bounding boxes to burn in
-                all_boxes: List[BoundingBox] = []
-                for e in page_entities:
-                    all_boxes.extend(e.bounding_boxes)
+                # 2. Burn opaque black vector rectangles over bounding boxes
+                if page_boxes:
+                    self._burn_opaque_rectangles(pdf, page, page_boxes)
 
-                # Step A: Scrub any AcroForm widget annotations on this page
+                # 3. Remove any interactive annotations / form widgets on the page
                 if "/Annots" in page:
-                    for annot in page.Annots:
-                        if annot.get("/Subtype") == pikepdf.Name("/Widget"):
-                            val = str(annot.get("/V", ""))
-                            rect = annot.get("/Rect")
-                            is_targeted = False
-                            for target in target_strings:
-                                if target and (target in val or val in target):
-                                    is_targeted = True
-                                    break
-                            if not is_targeted and rect and len(rect) == 4:
-                                rx0, ry0, rx1, ry1 = (
-                                    float(rect[0]),
-                                    float(rect[1]),
-                                    float(rect[2]),
-                                    float(rect[3]),
-                                )
-                                for b in all_boxes:
-                                    if not (rx1 < b.x0 or rx0 > b.x1 or ry1 < b.y0 or ry0 > b.y1):
-                                        is_targeted = True
-                                        break
-                            if is_targeted:
-                                annot["/V"] = String(b"[REDACTED]")
-                                if "/DV" in annot:
-                                    annot["/DV"] = String(b"[REDACTED]")
-                                if "/AP" in annot:
-                                    del annot["/AP"]
-                                if rect and len(rect) == 4:
-                                    w_box = BoundingBox(
-                                        page=page_idx,
-                                        x0=round(float(rect[0]), 2),
-                                        y0=round(float(rect[1]), 2),
-                                        x1=round(float(rect[2]), 2),
-                                        y1=round(float(rect[3]), 2),
-                                    )
-                                    if w_box not in all_boxes:
-                                        all_boxes.append(w_box)
+                    del page["/Annots"]
 
-                # Step B: Excise glyph operators in content stream (supporting CID and standard fonts)
-                self._excise_text_glyphs(pdf, page, target_strings)
+            # Also remove AcroForm interactive field values so hidden widget strings don't survive
+            if "/AcroForm" in pdf.Root:
+                del pdf.Root["/AcroForm"]
 
-                # Step C: Burn opaque black vector polygons directly into canvas
-                if all_boxes:
-                    self._burn_vector_rectangles(pdf, page, all_boxes)
-                    applied_count += len(all_boxes)
-                else:
-                    applied_count += len(target_strings)
-
-                # Step D: Strip non-widget annotations that might leak text
-                if "/Annots" in page:
-                    widget_annots = [
-                        a for a in page.Annots if a.get("/Subtype") == pikepdf.Name("/Widget")
-                    ]
-                    if widget_annots:
-                        page.Annots = Array(widget_annots)
-                    else:
-                        del page["/Annots"]
-
-            # 2. Scrub root AcroForm field values if present
-            if "/AcroForm" in pdf.Root and "/Fields" in pdf.Root.AcroForm:
-                for field in pdf.Root.AcroForm.Fields:
-                    val = str(field.get("/V", ""))
-                    for entity in entities:
-                        if entity.text and (entity.text in val or (len(val) > 2 and val in entity.text)):
-                            field["/V"] = String(b"[REDACTED]")
-                            if "/DV" in field:
-                                field["/DV"] = String(b"[REDACTED]")
-                            if "/AP" in field:
-                                del field["/AP"]
-                            break
-
-            # 3. Eradicate metadata across the document
+            # 4. Eradicate XMP and DocInfo metadata
             if eradicate_metadata:
-                self._wipe_metadata(pdf)
+                self._eradicate_metadata(pdf)
 
-            # 4. Save with linearize/clean options
+            # 5. Save with linearize/clean options (eliminates incremental revision history)
             pdf.save(
                 output_pdf,
                 linearize=False,
                 object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                compress_streams=True,
             )
 
-        return True, applied_count
+        return True, len(approved_entities)
 
-    def _parse_tounicode_cmap(self, stream_bytes: bytes) -> Tuple[dict, int]:
-        """Parse a /ToUnicode CMap stream into a cid->char mapping and space cid."""
-        bfchar = {}
-        space_cid = None
-        try:
-            text = stream_bytes.decode("latin1", errors="ignore")
-            for line in text.splitlines():
-                tokens = re.findall(r"<([0-9a-fA-F]+)>", line)
-                if len(tokens) == 2:
-                    src = int(tokens[0], 16)
-                    dst = chr(int(tokens[1], 16))
-                    bfchar[src] = dst
-                    if dst == " ":
-                        space_cid = src
-                elif len(tokens) >= 3:
-                    start = int(tokens[0], 16)
-                    end = int(tokens[1], 16)
-                    dst_start = int(tokens[2], 16)
-                    for i in range(end - start + 1):
-                        ch = chr(dst_start + i)
-                        bfchar[start + i] = ch
-                        if ch == " ":
-                            space_cid = start + i
-        except Exception:
-            pass
-        if space_cid is None:
-            space_cid = 0x0003 if 0x0003 in bfchar else 0x0020
-        return bfchar, space_cid
-
-    def _build_font_decoders(self, res: any) -> dict:
-        """Build dictionary of font decoders from resources dictionary."""
-        decoders = {}
-        if not res or not isinstance(res, pikepdf.Dictionary) or "/Font" not in res:
-            return decoders
-
-        for alias, font_obj in res["/Font"].items():
-            if isinstance(font_obj, pikepdf.Dictionary) and "/ToUnicode" in font_obj:
-                tu = font_obj["/ToUnicode"]
-                if isinstance(tu, pikepdf.Stream):
-                    bfchar, space_cid = self._parse_tounicode_cmap(tu.read_bytes())
-                    subtype = str(font_obj.get("/Subtype", ""))
-                    encoding = str(font_obj.get("/Encoding", ""))
-                    is_two_byte = subtype == "/Type0" or "Identity" in encoding
-                    if not is_two_byte and (space_cid is None or space_cid > 255):
-                        space_cid = 0x20
-                    decoders[str(alias)] = (bfchar, space_cid, is_two_byte)
-        return decoders
-
-    def _scrub_cid_bytes(
-        self,
-        raw: bytes,
-        bfchar: dict,
-        space_cid: int,
-        is_two_byte: bool,
-        target_strings: List[str],
-    ) -> Tuple[bytes, bool]:
-        """Scrub target strings from CID encoded byte sequence."""
-        if is_two_byte:
-            n = len(raw) // 2
-            cids = [int.from_bytes(raw[i * 2 : (i + 1) * 2], "big") for i in range(n)]
-            decoded = "".join(bfchar.get(cid, "?") for cid in cids)
-        else:
-            cids = list(raw)
-            decoded = "".join(bfchar.get(cid, chr(cid)) for cid in cids)
-
-        modified = False
-        new_cids = list(cids)
-
-        for target in target_strings:
-            if not target:
-                continue
-            start = 0
-            while True:
-                idx = decoded.find(target, start)
-                if idx == -1:
-                    break
-                for pos in range(idx, min(len(new_cids), idx + len(target))):
-                    new_cids[pos] = space_cid
-                modified = True
-                start = idx + len(target)
-
-        if modified:
-            if is_two_byte:
-                new_bytes = b"".join(cid.to_bytes(2, "big") for cid in new_cids)
-            else:
-                new_bytes = bytes(new_cids)
-            return new_bytes, True
-        return raw, False
-
-    def _scrub_tj_array(
-        self,
-        array_operand: any,
-        bfchar: dict,
-        space_cid: int,
-        is_two_byte: bool,
-        target_strings: List[str],
-    ) -> Tuple[list, bool]:
-        """Scrub target strings across composite TJ array elements (accounting for kernings)."""
-        char_map = []
-        decoded_chars = []
-
-        for item_idx, item in enumerate(array_operand):
-            if isinstance(item, (pikepdf.String, bytes)):
-                raw = bytes(item)
-                if is_two_byte:
-                    for b_off in range(0, len(raw), 2):
-                        cid = int.from_bytes(raw[b_off : b_off + 2], "big")
-                        decoded_chars.append(bfchar.get(cid, "?"))
-                        char_map.append((item_idx, b_off, 2))
-                else:
-                    for b_off in range(len(raw)):
-                        cid = raw[b_off]
-                        decoded_chars.append(bfchar.get(cid, chr(cid)))
-                        char_map.append((item_idx, b_off, 1))
-
-        full_text = "".join(decoded_chars)
-        modified = False
-
-        replacements = {}
-        for target in target_strings:
-            if not target:
-                continue
-            start = 0
-            while True:
-                idx = full_text.find(target, start)
-                if idx == -1:
-                    break
-                for pos in range(idx, min(len(char_map), idx + len(target))):
-                    item_idx, b_off, b_len = char_map[pos]
-                    if item_idx not in replacements:
-                        replacements[item_idx] = bytearray(bytes(array_operand[item_idx]))
-                    if b_len == 2:
-                        replacements[item_idx][b_off : b_off + 2] = space_cid.to_bytes(2, "big")
-                    else:
-                        replacements[item_idx][b_off] = space_cid
-                    modified = True
-                start = idx + len(target)
-
-        if modified:
-            new_array = list(array_operand)
-            for item_idx, new_bytes in replacements.items():
-                new_array[item_idx] = String(bytes(new_bytes))
-            return new_array, True
-        return list(array_operand), False
-
-    def _excise_stream_instructions(
+    def _excise_page_content_streams(
         self,
         pdf: pikepdf.Pdf,
-        stream_owner: any,
-        resources: any,
+        page: pikepdf.Page,
         target_strings: List[str],
-    ) -> bool:
-        """Excise target strings from a single content stream (page or Form XObject)."""
-        if not target_strings:
-            return False
+        target_boxes: List[BoundingBox],
+    ) -> int:
+        """
+        Parse PDF page content stream instructions and remove/blank out any `Tj`, `TJ`, `'`, `"`
+        text-showing operators whose operands match a target string OR whose rendered page
+        coordinates fall inside a target redaction bounding box.
+        """
+        if not target_strings and not target_boxes:
+            return 0
 
-        try:
-            instructions = pikepdf.parse_content_stream(stream_owner)
-        except Exception:
-            return False
-
-        font_decoders = self._build_font_decoders(resources)
-        active_font = None
-        font_stack = []
-        modified = False
+        excised_hits = 0
+        instructions = list(pikepdf.parse_content_stream(page))
         new_instructions = []
+
+        # Prepare byte and token sets for fast matching
+        targets_bytes: List[bytes] = []
+        cid_replacements: List[Tuple[bytes, bytes]] = []
+        word_targets_bytes: List[bytes] = []
+        word_cid_replacements: List[Tuple[bytes, bytes]] = []
+        allowed_spatial_tokens: Set[bytes] = set()
+        allowed_spatial_chars: Set[bytes] = set()
+        page_cmaps = _extract_page_tounicode_cmaps(page)
+
+        for t in sorted(target_strings, key=len, reverse=True):
+            tb = t.encode("latin1", errors="ignore")
+            if tb:
+                targets_bytes.append(tb)
+            # Also add compact (space-stripped) version if multi-spaced
+            t_compact = "".join(t.split())
+            if len(t_compact) >= 5 and t_compact != t:
+                targets_bytes.append(t_compact.encode("latin1", errors="ignore"))
+            # Encode target via each font's /ToUnicode CMap on this page (handles /Identity-H Type0 fonts)
+            for cmap in page_cmaps:
+                space_cid = cmap.get(" ") or cmap.get("\xa0")
+                for variant in {t, t.lower(), t.upper(), t.title()}:
+                    if variant and all(ch in cmap for ch in variant):
+                        enc_cid = b"".join(cmap[ch] for ch in variant)
+                        if enc_cid:
+                            repl_cid = (
+                                space_cid * len(variant)
+                                if space_cid and len(space_cid) * len(variant) == len(enc_cid)
+                                else b"\x00" * len(enc_cid)
+                            )
+                            cid_replacements.append((enc_cid, repl_cid))
+            # Add individual tokens and characters for spatial bounding-box verification
+            for tok in t.split():
+                tok_b = tok.encode("latin1", errors="ignore").lower()
+                if tok_b:
+                    allowed_spatial_tokens.add(tok_b)
+                # Strip punctuation (commas, hyphens, periods) for token matching
+                tok_clean_str = tok.strip(",.:;#-()")
+                tok_clean = tok_clean_str.encode("latin1", errors="ignore").lower()
+                if tok_clean:
+                    allowed_spatial_tokens.add(tok_clean)
+                if len(tok_clean_str) >= 3:
+                    word_targets_bytes.append(tok_clean_str.encode("latin1", errors="ignore"))
+                    for cmap in page_cmaps:
+                        space_cid = cmap.get(" ") or cmap.get("\xa0")
+                        if all(ch in cmap for ch in tok_clean_str):
+                            w_cid = b"".join(cmap[ch] for ch in tok_clean_str)
+                            if w_cid:
+                                w_repl = (
+                                    space_cid * len(tok_clean_str)
+                                    if space_cid and len(space_cid) * len(tok_clean_str) == len(w_cid)
+                                    else b"\x00" * len(w_cid)
+                                )
+                                word_cid_replacements.append((w_cid, w_repl))
+            for ch in t_compact.lower():
+                allowed_spatial_chars.add(ch.encode("latin1", errors="ignore"))
+
+        # Track ISO 32000-1 graphics CTM and text matrices (Tm, Tlm)
+        ctm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        ctm_stack: List[List[float]] = []
+        tm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        tlm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        text_leading = 0.0
+        in_text_obj = False
+
+        def _current_page_pos() -> Tuple[float, float]:
+            m = _mul_matrix(tm, ctm)
+            return m[4], m[5]
+
+        def _is_spatially_targeted(op_bytes: bytes, px: float, py: float) -> bool:
+            if not target_boxes:
+                return False
+            in_box = False
+            for b in target_boxes:
+                if (b.x0 - 4.0) <= px <= (b.x1 + 4.0) and (b.y0 - 3.5) <= py <= (b.y1 + 3.5):
+                    in_box = True
+                    break
+            if not in_box:
+                return False
+
+            # If there are no specific target_strings on this page (pure manual box), excise any text in box
+            if not target_strings:
+                return True
+
+            stripped = op_bytes.strip()
+            if not stripped:
+                return False
+            low = stripped.lower()
+
+            # Check if operator text is a token, substring, or single-character comb cell of a target
+            if low in allowed_spatial_tokens:
+                return True
+            low_clean = low.strip(b",.:;#-()_ ")
+            if low_clean and low_clean in allowed_spatial_tokens:
+                return True
+            if len(low_clean) == 1 and low_clean in allowed_spatial_chars:
+                return True
+            for tb in targets_bytes:
+                if low_clean and len(low_clean) >= 2 and low_clean in tb.lower():
+                    return True
+            return False
 
         for operands, operator in instructions:
             op_name = str(operator)
 
             if op_name == "q":
-                font_stack.append(active_font)
-                new_instructions.append((operands, operator))
-                continue
+                ctm_stack.append(list(ctm))
             elif op_name == "Q":
-                if font_stack:
-                    active_font = font_stack.pop()
-                new_instructions.append((operands, operator))
-                continue
-            elif op_name == "Tf" and operands:
-                active_font = str(operands[0])
-                new_instructions.append((operands, operator))
-                continue
+                if ctm_stack:
+                    ctm = ctm_stack.pop()
+            elif op_name == "cm" and len(operands) == 6:
+                try:
+                    cm_mat = [float(x) for x in operands]
+                    ctm = _mul_matrix(cm_mat, ctm)
+                except Exception:
+                    pass
+            elif op_name == "BT":
+                in_text_obj = True
+                tm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+                tlm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+            elif op_name == "ET":
+                in_text_obj = False
+            elif op_name in ("Td", "TD") and len(operands) == 2:
+                try:
+                    tx_d, ty_d = float(operands[0]), float(operands[1])
+                    if op_name == "TD":
+                        text_leading = -ty_d
+                    tlm = _mul_matrix([1.0, 0.0, 0.0, 1.0, tx_d, ty_d], tlm)
+                    tm = list(tlm)
+                except Exception:
+                    pass
+            elif op_name == "Tm" and len(operands) == 6:
+                try:
+                    tlm = [float(x) for x in operands]
+                    tm = list(tlm)
+                except Exception:
+                    pass
+            elif op_name == "TL" and len(operands) == 1:
+                try:
+                    text_leading = float(operands[0])
+                except Exception:
+                    pass
+            elif op_name == "T*":
+                tlm = _mul_matrix([1.0, 0.0, 0.0, 1.0, 0.0, -text_leading], tlm)
+                tm = list(tlm)
 
-            # Tj operator: show text string
-            elif op_name in ("Tj", "'", '"') and operands:
-                target_operand = operands[0] if op_name == "Tj" else operands[-1]
-                raw_bytes = bytes(target_operand)
-
-                if active_font and active_font in font_decoders:
-                    bfchar, space_cid, is_two_byte = font_decoders[active_font]
-                    scrubbed_bytes, changed = self._scrub_cid_bytes(
-                        raw_bytes, bfchar, space_cid, is_two_byte, target_strings
+            if op_name in ("Tj", "'", '"') and operands:
+                str_idx = -1 if op_name == '"' else 0
+                val = operands[str_idx]
+                if isinstance(val, pikepdf.String):
+                    raw_bytes = bytes(val)
+                    cleaned_bytes, hit = self._clean_string_bytes(
+                        raw_bytes, targets_bytes, cid_replacements
                     )
-                    if changed:
+                    if not hit and in_text_obj:
+                        px, py = _current_page_pos()
+                        if _is_spatially_targeted(raw_bytes, px, py):
+                            cleaned_bytes = b" " * len(raw_bytes)
+                            hit = True
+                        elif any((b.y0 - 4.5) <= py <= (b.y1 + 4.5) for b in target_boxes):
+                            cleaned_bytes, hit = self._clean_string_bytes(
+                                raw_bytes, word_targets_bytes, word_cid_replacements
+                            )
+                    if hit:
+                        excised_hits += 1
                         new_ops = list(operands)
-                        if op_name == "Tj":
-                            new_ops[0] = String(scrubbed_bytes)
-                        else:
-                            new_ops[-1] = String(scrubbed_bytes)
+                        new_ops[str_idx] = pikepdf.String(cleaned_bytes)
                         new_instructions.append((new_ops, operator))
-                        modified = True
-                        continue
-                else:
-                    text_content = self._decode_pdf_string(target_operand)
-                    scrubbed_text, changed = self._scrub_string(text_content, target_strings)
-                    if changed:
-                        new_ops = list(operands)
-                        if op_name == "Tj":
-                            new_ops[0] = String(scrubbed_text.encode("latin1", errors="replace"))
-                        else:
-                            new_ops[-1] = String(scrubbed_text.encode("latin1", errors="replace"))
-                        new_instructions.append((new_ops, operator))
-                        modified = True
                         continue
 
-            # TJ operator: show array of text strings and spacing glyphs
             elif op_name == "TJ" and operands:
-                array_operand = operands[0]
-                if isinstance(array_operand, (list, Array)):
-                    if active_font and active_font in font_decoders:
-                        bfchar, space_cid, is_two_byte = font_decoders[active_font]
-                        scrubbed_array, changed = self._scrub_tj_array(
-                            array_operand, bfchar, space_cid, is_two_byte, target_strings
-                        )
-                        if changed:
-                            new_instructions.append(([Array(scrubbed_array)], operator))
-                            modified = True
-                            continue
-                    else:
-                        new_array = []
-                        array_changed = False
-                        for item in array_operand:
-                            if isinstance(item, (pikepdf.String, bytes)):
-                                text_content = self._decode_pdf_string(item)
-                                scrubbed_text, changed = self._scrub_string(text_content, target_strings)
-                                if changed:
-                                    new_array.append(String(scrubbed_text.encode("latin1", errors="replace")))
-                                    array_changed = True
+                arr = operands[0]
+                if isinstance(arr, pikepdf.Array):
+                    combined_bytes = b""
+                    string_indices = []
+                    for idx, item in enumerate(arr):
+                        if isinstance(item, pikepdf.String):
+                            b_item = bytes(item)
+                            string_indices.append((idx, len(combined_bytes), len(b_item)))
+                            combined_bytes += b_item
+
+                    cleaned_combined, hit = self._clean_string_bytes(
+                        combined_bytes, targets_bytes, cid_replacements
+                    )
+                    if not hit and in_text_obj:
+                        px, py = _current_page_pos()
+                        if _is_spatially_targeted(combined_bytes, px, py):
+                            cleaned_combined = b" " * len(combined_bytes)
+                            hit = True
+                        elif any((b.y0 - 4.5) <= py <= (b.y1 + 4.5) for b in target_boxes):
+                            cleaned_combined, hit = self._clean_string_bytes(
+                                combined_bytes, word_targets_bytes, word_cid_replacements
+                            )
+                    if hit:
+                        excised_hits += 1
+                        new_arr = pikepdf.Array()
+                        for idx, item in enumerate(arr):
+                            if isinstance(item, pikepdf.String):
+                                match_meta = next(
+                                    (m for m in string_indices if m[0] == idx), None
+                                )
+                                if match_meta:
+                                    _, start, length = match_meta
+                                    segment = cleaned_combined[start : start + length]
+                                    new_arr.append(pikepdf.String(segment))
                                 else:
-                                    new_array.append(item)
+                                    new_arr.append(item)
                             else:
-                                new_array.append(item)
-                        if array_changed:
-                            new_instructions.append(([Array(new_array)], operator))
-                            modified = True
-                            continue
+                                new_arr.append(item)
+                        new_instructions.append(([new_arr], operator))
+                        continue
 
             new_instructions.append((operands, operator))
 
-        if modified:
+        if excised_hits > 0:
             new_stream_bytes = pikepdf.unparse_content_stream(new_instructions)
-            if isinstance(stream_owner, pikepdf.Page):
-                stream_owner.Contents = pdf.make_stream(new_stream_bytes)
-            elif hasattr(stream_owner, "write"):
-                stream_owner.write(new_stream_bytes)
-        return modified
+            page.Contents = pdf.make_stream(new_stream_bytes)
 
-    def _excise_text_glyphs(
-        self, pdf: pikepdf.Pdf, page: pikepdf.Page, target_strings: List[str]
-    ) -> None:
-        """Parse page content stream instructions and any Form XObjects, replacing target text glyphs."""
-        if not target_strings:
-            return
+        return excised_hits
 
-        page_res = page.get("/Resources", {})
-        self._excise_stream_instructions(pdf, page, page_res, target_strings)
+    def _clean_string_bytes(
+        self,
+        raw_bytes: bytes,
+        targets_bytes: List[bytes],
+        cid_replacements: List[Tuple[bytes, bytes]] = (),
+    ) -> Tuple[bytes, bool]:
+        """
+        Replace any occurrence of target bytes (case-insensitive) or ToUnicode CID byte sequences
+        with spaces of equal length so adjacent non-redacted text preserves its layout offset.
+        """
+        modified = raw_bytes
+        hit = False
+        lower_mod = modified.lower()
 
-        # Also excise Form XObjects referenced on this page
-        xobjects = page_res.get("/XObject", {})
-        if isinstance(xobjects, pikepdf.Dictionary):
-            for _, x_obj in xobjects.items():
-                if isinstance(x_obj, pikepdf.Stream) and x_obj.get("/Subtype") == pikepdf.Name("/Form"):
-                    x_res = x_obj.get("/Resources") or page_res
-                    self._excise_stream_instructions(pdf, x_obj, x_res, target_strings)
+        for tb in targets_bytes:
+            if not tb:
+                continue
+            tb_lower = tb.lower()
+            start = 0
+            while True:
+                idx = lower_mod.find(tb_lower, start)
+                if idx == -1:
+                    break
+                replacement = b" " * len(tb)
+                modified = modified[:idx] + replacement + modified[idx + len(tb) :]
+                lower_mod = modified.lower()
+                hit = True
+                start = idx + len(tb)
 
-    def _burn_vector_rectangles(
+        for enc_cid, repl_cid in cid_replacements:
+            if not enc_cid:
+                continue
+            start = 0
+            while True:
+                idx = modified.find(enc_cid, start)
+                if idx == -1:
+                    break
+                modified = (
+                    modified[:idx] + repl_cid + modified[idx + len(enc_cid) :]
+                )
+                lower_mod = modified.lower()
+                hit = True
+                start = idx + len(enc_cid)
+
+        return modified, hit
+
+    def _burn_opaque_rectangles(
         self, pdf: pikepdf.Pdf, page: pikepdf.Page, boxes: List[BoundingBox]
     ) -> None:
-        """Append opaque black vector rectangles directly to page content stream."""
-        if not boxes:
-            return
-
-        stream_commands = ["q", "0 0 0 rg"]
+        """Append PDF graphics instructions to draw solid black rectangles over excised regions."""
+        commands = ["q", "0 0 0 rg", "0 0 0 RG"]
         for box in boxes:
-            x = box.x0
-            y = box.y0
-            w = box.width
-            h = box.height
-            # Add 1.5pt padding for complete visual glyph coverage
-            stream_commands.append(f"{x - 1.5:.2f} {y - 1.5:.2f} {w + 3.0:.2f} {h + 3.0:.2f} re")
-        stream_commands.extend(["f", "Q"])
-        stream_bytes = " ".join(stream_commands).encode("ascii")
+            # Pad slightly to ensure full visual coverage of ascenders/descenders
+            x = max(0.0, box.x0 - 1.0)
+            y = max(0.0, box.y0 - 1.0)
+            w = max(4.0, (box.x1 - box.x0) + 2.0)
+            h = max(4.0, (box.y1 - box.y0) + 2.0)
+            commands.append(f"{x:.2f} {y:.2f} {w:.2f} {h:.2f} re f")
+        commands.append("Q")
 
-        burn_stream = pdf.make_stream(stream_bytes)
+        overlay_bytes = ("\n".join(commands) + "\n").encode("ascii")
+        page.contents_add(pdf.make_stream(overlay_bytes), prepend=False)
 
-        if isinstance(page.Contents, Array):
-            page.Contents.append(burn_stream)
-        elif page.Contents is not None:
-            page.Contents = Array([page.Contents, burn_stream])
-        else:
-            page.Contents = burn_stream
-
-    def _wipe_metadata(self, pdf: pikepdf.Pdf) -> None:
-        """Strip XMP metadata streams, DocInfo dictionary, PieceInfo, and private trees."""
-        if hasattr(pdf, "docinfo") and pdf.docinfo is not None:
-            for key in list(pdf.docinfo.keys()):
-                del pdf.docinfo[key]
-
+    def _eradicate_metadata(self, pdf: pikepdf.Pdf) -> None:
+        """Delete all Document Info keys and XMP Metadata streams."""
         if "/Metadata" in pdf.Root:
             del pdf.Root["/Metadata"]
 
-        if "/PieceInfo" in pdf.Root:
-            del pdf.Root["/PieceInfo"]
-
-        if "/StructTreeRoot" in pdf.Root:
-            del pdf.Root["/StructTreeRoot"]
-
-    def _decode_pdf_string(self, item: any) -> str:
-        """Safely decode a PDF string operand to unicode."""
-        if isinstance(item, pikepdf.String):
-            return str(item)
-        if isinstance(item, bytes):
-            return item.decode("latin1", errors="ignore")
-        return str(item)
-
-    def _scrub_string(self, text: str, target_strings: List[str]) -> Tuple[str, bool]:
-        """Replace target string occurrences within text with spaces to excise glyphs."""
-        changed = False
-        result = text
-        for target in target_strings:
-            if not target:
-                continue
-            if target in result:
-                result = result.replace(target, " " * len(target))
-                changed = True
-            if "\n" in target:
-                for sub in target.splitlines():
-                    sub_s = sub.strip()
-                    if len(sub_s) > 1 and sub_s in result:
-                        result = result.replace(sub_s, " " * len(sub_s))
-                        changed = True
-        return result, changed
+        if pdf.docinfo:
+            keys = list(pdf.docinfo.keys())
+            for k in keys:
+                try:
+                    del pdf.docinfo[k]
+                except Exception:
+                    pass
