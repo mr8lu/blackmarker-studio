@@ -1,4 +1,4 @@
-"""Command-line interface for AI Blackmarker (RedactGov) sovereign on-device redaction engine."""
+"""Command-line interface for Blackmarker Studio sovereign on-device redaction engine."""
 
 from pathlib import Path
 from typing import Optional
@@ -17,8 +17,8 @@ from redact_gov.core.statutes import VIRGINIA_STATUTES, get_statute
 from redact_gov.pipeline import RedactionPipeline
 
 app = typer.Typer(
-    name="aiblackmarker",
-    help="AI Blackmarker (RedactGov): Sovereign, air-gapped on-device redaction engine for FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2 & AICPA.",
+    name="blackmarker",
+    help="Blackmarker Studio: Sovereign, air-gapped on-device redaction engine for FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2 & AICPA.",
     add_completion=False,
 )
 console = Console()
@@ -75,7 +75,7 @@ def redact(
 
     rel_profile = _resolve_profile(profile)
     enabled_domains = _parse_domains(domains)
-    console.print(f"[bold blue]AI Blackmarker[/bold blue] - Processing [bold]{input_pdf.name}[/bold] (Profile: [cyan]{rel_profile.value}[/cyan])...")
+    console.print(f"[bold blue]Blackmarker Studio[/bold blue] - Processing [bold]{input_pdf.name}[/bold] (Profile: [cyan]{rel_profile.value}[/cyan])...")
 
     pipeline = RedactionPipeline(
         profile=rel_profile,
@@ -160,7 +160,7 @@ def audit(
     )
 
     table = Table(
-        title=f"AI Blackmarker Audit Report: {input_pdf.name} (Profile: {rel_profile.value} | Domains: {', '.join(plan.enabled_domains)})"
+        title=f"Blackmarker Studio Audit Report: {input_pdf.name} (Profile: {rel_profile.value} | Domains: {', '.join(plan.enabled_domains)})"
     )
     table.add_column("Page", justify="center", style="cyan")
     table.add_column("Domain", justify="center", style="bold yellow")
@@ -262,7 +262,7 @@ def inspect(
         for issue in report.issues:
             table.add_row(issue)
         console.print(table)
-        console.print("[cyan]Hint:[/cyan] AI Blackmarker will automatically heal these imperfections when run with default settings (--repair).")
+        console.print("[cyan]Hint:[/cyan] Blackmarker Studio will automatically heal these imperfections when run with default settings (--repair).")
     else:
         console.print("[green]No font descriptor or structural anomalies detected. Document is clean.[/green]")
 

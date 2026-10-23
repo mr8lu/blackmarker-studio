@@ -1,7 +1,7 @@
 [project]
 name = "redact-gov"
 version = "0.4.0"
-description = "AI Blackmarker: Sovereign, air-gapped multi-sector document redaction and compliance engine (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, AICPA SOC 2) with a-la-carte PII/PHI/PPI domain selection, powered by on-device Google Gemma 4 E4B and surgical PikePDF stream sanitization."
+description = "Blackmarker Studio: Sovereign, air-gapped multi-sector document redaction and compliance engine (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, AICPA SOC 2) with a-la-carte PII/PHI/PPI domain selection, powered by on-device Google Gemma 4 E4B and surgical PikePDF stream sanitization."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -21,6 +21,8 @@ dependencies = [
 ]
 
 [project.scripts]
+blackmarker = "redact_gov.cli:app"
+blackmarker-studio = "redact_gov.cli:app"
 aiblackmarker = "redact_gov.cli:app"
 ai-blackmarker = "redact_gov.cli:app"
 redactgov = "redact_gov.cli:app"

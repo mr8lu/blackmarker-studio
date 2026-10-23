@@ -27,7 +27,7 @@ def test_ui_served():
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "AI Blackmarker" in response.text
+    assert "Blackmarker Studio" in response.text
     assert "HIPAA" in response.text
     assert "PCI DSS" in response.text
 

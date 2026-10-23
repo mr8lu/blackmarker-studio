@@ -1,40 +1,93 @@
 <p align="center">
-  <img src="assets/icon/icon_512.png" width="136" height="136" alt="AI Blackmarker App Icon" />
+  <img src="assets/icon/icon_512.png" width="140" height="140" alt="Blackmarker Studio App Icon" />
 </p>
 
-<h1 align="center">AI Blackmarker</h1>
+<h1 align="center">Blackmarker Studio</h1>
 
 <p align="center">
-  <strong>Sovereign, air-gapped multi-sector document redaction & compliance engine (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, AICPA SOC 2) with a-la-carte PII / PHI / PPI selection, powered by on-device Google Gemma 4 E4B, interactive Manual Blackmarker marquee drawing, and surgical PikePDF stream sanitization.</strong>
+  <strong>Sovereign, air-gapped multi-sector document redaction &amp; compliance studio (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, AICPA SOC 2) with a-la-carte PII / PHI / PPI selection, powered by on-device Google Gemma 4 E4B, interactive Manual Blackmarker marquee drawing, and surgical PikePDF stream excision.</strong>
 </p>
 
 <p align="center">
-  <a href="#supported-compliance-frameworks--profiles"><img src="https://img.shields.io/badge/Compliance-FOIA_•_HIPAA_•_PCI_DSS_•_GLBA_•_FRCP_5.2-blue.svg" alt="Compliance Frameworks" /></a>
-  <a href="#a-la-carte-data-domain-selection-pii--phi--ppi"><img src="https://img.shields.io/badge/Domains-PII_•_PHI_•_PPI-teal.svg" alt="Data Domains" /></a>
-  <a href="https://ai.google.dev/gemma"><img src="https://img.shields.io/badge/SLM-Google_Gemma_4_E4B-red.svg" alt="Inference Engine" /></a>
-  <a href="https://pikepdf.readthedocs.io/"><img src="https://img.shields.io/badge/Sanitizer-PikePDF_QPDF-orange.svg" alt="Sanitization Engine" /></a>
-  <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/Env-Python_3.12+_uv-purple.svg" alt="Environment" /></a>
+  <a href="#supported-compliance-frameworks"><img src="https://img.shields.io/badge/Compliance-FOIA_%E2%80%A2_HIPAA_%E2%80%A2_PCI_DSS_%E2%80%A2_GLBA_%E2%80%A2_FRCP_5.2-0A66C2.svg" alt="Compliance Frameworks" /></a>
+  <a href="#a-la-carte-data-domain-selection-pii--phi--ppi"><img src="https://img.shields.io/badge/Domains-PII_%E2%80%A2_PHI_%E2%80%A2_PPI-008080.svg" alt="Data Domains" /></a>
+  <a href="https://ai.google.dev/gemma"><img src="https://img.shields.io/badge/SLM-Google_Gemma_4_E4B-D93025.svg" alt="Inference Engine" /></a>
+  <a href="https://pikepdf.readthedocs.io/"><img src="https://img.shields.io/badge/Sanitizer-PikePDF_QPDF-E37400.svg" alt="Sanitization Engine" /></a>
+  <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/Env-Python_3.12+_uv-6B4FBB.svg" alt="Environment" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2EA44F.svg" alt="MIT License" /></a>
+</p>
+
+<p align="center">
+  <a href="#why-blackmarker-studio">Why Blackmarker Studio?</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#supported-compliance-frameworks">Compliance Frameworks</a> •
+  <a href="#quickstart--installation">Quickstart</a> •
+  <a href="#native-macos-studio--menu-bar-droplet">macOS Studio</a> •
+  <a href="#cli--web-hitl-reference">CLI &amp; Web HITL</a> •
+  <a href="CONTRIBUTING.md">Contributing</a> •
+  <a href="SECURITY.md">Security</a>
 </p>
 
 ---
 
-## Overview
+## Why Blackmarker Studio?
 
-Government agencies (Federal, State, and Local), hospital systems, financial institutions, law firms, and enterprise compliance teams must sanitize sensitive PDFs before public disclosure, litigation production, clinical de-identification, or audit archival.
+### The "Sharpie Trap" vs. True PDF Stream Excision
 
-Standard cloud redaction services risk exfiltrating regulated **PII**, **PHI**, and **PPI** to third-party servers, while manual desktop redaction (such as black shapes placed on top of text layers) frequently results in catastrophic leaks because the underlying text glyphs remain copyable in the PDF byte stream.
+Every year, government agencies, hospital networks, financial institutions, and law firms suffer catastrophic data breaches from a deceptively simple mistake: **drawing a black rectangle over sensitive text in a PDF viewer and clicking "Save."**
 
-**AI Blackmarker** provides a 100% sovereign, air-gapped solution across public and private sectors:
-1. **Multi-Sector Compliance Profiles:** Built-in regulatory profiles for **Public FOIA** (5 U.S.C. § 552 & State Public Records), **HIPAA Safe Harbor** (45 CFR § 164.514(b)), **PCI DSS v4.0** (Req. 3.3 / 3.4), **GLBA Safeguards** (16 CFR Part 314), **Judicial Filings** (Fed. R. Civ. P. 5.2), **AICPA SOC 2** (TSC CC6.1 / P4.2), **Law Enforcement / CJIS**, and **Environmental Review**.
-2. **A-La-Carte Data Domain Selection (`PII` • `PHI` • `PPI`):** Toggle **Personal Identifiable Information (PII)**, **Protected Health Information (PHI)**, and **Payment & Personal Financial Information (PPI)** independently or in any combination.
-3. **Zero-Cloud Local Inference:** Powered by quantized **Google Gemma 4 E4B** running locally on Apple Metal / CPU via `llama.cpp`. No data ever leaves the local device.
-4. **Deterministic Fast Path (Tier 1):** Sub-second regex and algorithmic checksum validators for SSNs, Driver's Licenses, Passports, Phones, Emails, Medical Record Numbers (MRNs), NPIs, ICD-10 diagnosis codes, Health Plan / Medicare IDs, Luhn-validated Credit/Debit PANs, Mod-10 ABA Routing Numbers, Bank Account numbers, and IBAN/SWIFT codes.
-5. **Interactive Manual Blackmarker Drawing:** Toggle **Manual Blackmarker** (or hold **Shift + Drag** directly on any PDF page) to draw custom redaction boxes over missed text, signatures, or badges. AI Blackmarker automatically resolves all underlying PDF word tokens inside the drawn box and excises their glyphs from the PDF content stream alongside an opaque vector rectangle.
-6. **Customizable Redaction & Compliance Certificates:** Generate verifiable PDF audit certificates tailored to your organization - choose from built-in presets (*General Compliance*, *Public Records / FOIA*, *Healthcare HIPAA Safe Harbor*, *Banking & Payment PCI DSS / GLBA*, *Judicial Filing FRCP 5.2*, *Enterprise AICPA SOC 2*) or customize the Header Banner, Organization/Hospital/Bank Name, Certifying Officer, and Legal Attestation text.
+Think of a PDF file like a multi-layered glass transparency on an overhead projector. Placing a strip of black tape on the top glass layer hides the words from human eyes on the wall, yet the ink on the bottom sheet remains completely intact. Anyone who opens that PDF can drag their cursor across the black box, press `Cmd+C`, and paste the "redacted" Social Security Number, juvenile victim name, or wire routing number into a plain text editor. Worse still, uploading confidential records to commercial cloud redaction APIs violates strict data sovereignty, CJIS, and HIPAA boundaries before redaction even begins.
+
+**Blackmarker Studio** eliminates both failure modes through **air-gapped on-device intelligence** and **surgical byte-level stream excision**:
+
+| Capability | Cloud Redaction APIs | Basic PDF Viewers ("Black Box") | **Blackmarker Studio** |
+| :--- | :---: | :---: | :---: |
+| **Network Sovereignty** | Uploads docs to third-party cloud | Local | **100% Air-Gapped / Zero Egress** |
+| **PDF Content Stream (`Tj`/`TJ`)** | Varies by vendor | Leaves underlying glyphs intact | **Surgically excises glyph bytes via PikePDF/QPDF** |
+| **XMP & `/Info` Metadata** | Often preserved | Preserved | **Completely eradicated** |
+| **Contextual AI (Juveniles, Witnesses, Clinical Notes)** | Cloud LLM (Exfiltration risk) | None (Manual eye scan) | **On-Device Google Gemma 4 E4B (Metal / CPU)** |
+| **Manual Marquee Drawing (`Shift + Drag`)** | Visual overlay only | Visual overlay only | **Auto-resolves & excises underlying word tokens** |
+| **Post-Redaction Byte Verification** | None | None | **Automated zero-residual byte stream audit** |
+| **Audit & Legal Certificates** | Generic logs | None | **Customizable Statutory & Compliance PDF Certificates** |
 
 ---
 
-## Supported Compliance Frameworks & Profiles
+## Architecture
+
+Blackmarker Studio combines a two-tier hybrid detection engine with spatial token geometry, interactive human-in-the-loop (HITL) marquee tools, and low-level QPDF content stream surgery.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                             BLACKMARKER STUDIO PIPELINE                             │
+├───────────────────────────┬─────────────────────────────┬───────────────────────────┤
+│    1. Ingest & Geometry   │  2. Hybrid AI + Manual Plan │  3. Surgical Sanitization │
+│                           │                             │                           │
+│  Digital / Scanned PDF    │  Tier 1: Sub-Second Regex   │  PikePDF / QPDF Engine    │
+│  + Auto Font Repair       │  (SSN, PAN, NPI, ABA, DOB)  │  • Excise Tj/TJ Glyphs    │
+│             │             │              +              │  • Burn Vector Rectangles │
+│             ▼             │  Tier 2: Google Gemma 4 E4B │  • Strip XMP & /Info      │
+│  pdfplumber + Apple       │  (Constrained JSON Grammar) │             │             │
+│  Vision Neural OCR        │              +              │             ▼             │
+│             │             │  Manual Blackmarker Marquee │  Zero-Residual Byte Audit │
+│             ▼             │  (Shift + Drag Token Snap)  │             │             │
+│  Token Bounding Boxes     │              │              │             ▼             │
+│  (x0, y0, x1, y1)         │              ▼              │  Sanitized PDF + Custom   │
+│  + Form Prompt Context    │  PII • PHI • PPI Classifier │  Compliance Certificate   │
+└───────────────────────────┴─────────────────────────────┴───────────────────────────┘
+```
+
+### Key Architectural Highlights
+1. **Document Healing & Spatial Geometry (`redact_gov.core.normalizer` & `geometry`):** Automatically repairs malformed PDF font descriptors (`FontBBox=None`), extracts exact point-coordinate bounding boxes `(x0, y0, x1, y1)`, and pairs with Apple `Vision` (`VNRecognizeTextRequest`) neural OCR on macOS for flattened scans.
+2. **Tier 1 Deterministic Fast Path (`redact_gov.engines.deterministic`):** Sub-second regex and algorithmic checksum validators (Luhn PAN validation, Mod-10 ABA routing verification, NPI/MRN/ICD-10 patterns, SSN/DL/Passport rules) with context-aware form prompt evaluation.
+3. **Tier 2 Cognitive & Multimodal Vision Engine (`redact_gov.engines.contextual`):** Runs quantized **Google Gemma 4 E4B** locally via `llama.cpp` (Apple Metal GPU and CPU acceleration) with GBNF grammar enforcement to identify nuanced entities: juvenile names, crime victims, confidential informants, psychiatric notes, and public-official allowlists.
+4. **Ephemeral Worker Lifecycle (`redact_gov.worker`):** The native macOS Studio communicates with an on-demand JSON-RPC stdio worker (`blackmarker worker`) that automatically unloads Gemma 4 E4B after idle timeout, maintaining **0 MB idle VRAM** when not actively scanning.
+5. **Surgical PikePDF Stream Sanitization (`redact_gov.engines.sanitization`):** Parses uncompressed PDF page content streams, removes matching `Tj` and `TJ` text-showing operators inside target bounding boxes, burns opaque vector rectangles, wipes `/Metadata` and `/Info` dictionaries, and runs a mandatory post-redaction verification check confirming zero residual substrings.
+
+---
+
+## Supported Compliance Frameworks
+
+Select a turnkey compliance profile to automatically configure statutory citations, coordinate policies, public-official allowlists, and certificate presets:
 
 | Profile Key | Sector / Mandate | Default Domains | Primary Regulatory Citations |
 | :--- | :--- | :--- | :--- |
@@ -52,73 +105,230 @@ Standard cloud redaction services risk exfiltrating regulated **PII**, **PHI**, 
 
 ## A-La-Carte Data Domain Selection (`PII` • `PHI` • `PPI`)
 
-Users can select a compliance profile **or** mix-and-match individual data domains a-la-carte in the native macOS Studio, Web HITL Reviewer, or CLI (`--domains PII,PHI,PPI`):
+Need surgical control beyond a preset profile? Mix and match individual data domains in the macOS Studio, Web HITL Reviewer, or CLI (`--domains PII,PHI,PPI`):
 
-- **`PII` (Personal Identifiable Information):** Social Security Numbers (SSNs), Driver's Licenses & State IDs, Passport Numbers, Dates of Birth, Phone Numbers, Email Addresses, Residential Addresses, Juvenile Identifiers, Crime Victims/Witnesses, Law Enforcement Tactical Personnel, and Sensitive GPS Coordinates.
-- **`PHI` (Protected Health Information - HIPAA 45 CFR § 164.514):** Medical Record Numbers (MRNs), National Provider Identifiers (NPIs), Health Plan Beneficiary / Policy / Medicare IDs, ICD-10 Clinical Diagnosis Codes, and Clinical / Psychiatric Treatment Notes.
-- **`PPI` (Payment & Personal Financial Information - PCI DSS / GLBA):** Luhn-validated Credit/Debit Card PANs, Card Security Codes (CVV/CVC/PIN), Mod-10 validated ABA Routing Numbers, Checking/Savings/Wire Bank Account Numbers, and IBAN / SWIFT BIC Identifiers.
+- **`PII` (Personal Identifiable Information):**
+  Social Security Numbers (SSNs), Driver's Licenses and State IDs, U.S. & International Passport Numbers, Dates of Birth, Telephone Numbers, Email Addresses, Residential Street Addresses, Juvenile Identifiers, Crime Victims & Witnesses, Undercover Tactical Personnel, and Sensitive GPS Coordinates.
+- **`PHI` (Protected Health Information - HIPAA 45 CFR § 164.514):**
+  Medical Record Numbers (MRNs), National Provider Identifiers (NPIs), Health Plan Beneficiary / Policy / Medicare IDs, ICD-10 Clinical Diagnosis Codes, and Clinical / Psychiatric Treatment Narratives.
+- **`PPI` (Payment & Personal Financial Information - PCI DSS / GLBA):**
+  Luhn-validated Credit & Debit Card Primary Account Numbers (PANs), Card Security Codes (CVV/CVC/PIN), Mod-10 validated ABA Routing Numbers, Checking / Savings / Wire Bank Account Numbers, and IBAN / SWIFT BIC Identifiers.
 
 ---
 
-## Quickstart
+## Customizable Redaction Certificates
+
+Every sanitization run can emit a formal, cryptographically hashed **Compliance & Redaction Certificate PDF** powered by Polars and ReportLab. Choose from six built-in industry presets or customize every field:
+
+- **Built-in Certificate Presets (`--cert-preset`):**
+  - `generic_compliance` - Multi-Sector PII / PHI / PPI Sanitization Certificate
+  - `public_foia` - Federal & State Freedom of Information Act Exemption Log
+  - `hipaa_healthcare` - HIPAA Safe Harbor De-Identification Certificate (45 CFR § 164.514(b))
+  - `banking_glba_pci` - Financial Privacy & PCI DSS v4.0 Sanitization Attestation
+  - `judicial_frcp` - Federal Rule of Civil Procedure 5.2 Privacy Compliance Certificate
+  - `enterprise_aicpa` - AICPA SOC 2 (CC6.1 / P4.2) Data Sanitization Audit Record
+- **Custom Organization Branding:** Override the Jurisdiction / Sector Header Banner, Framework Subtitle, Certificate Title, Organization / Hospital / Bank Name (`--agency`), Certifying Officer (`--reviewer`), and Legal Attestation Clause.
+
+---
+
+## Quickstart & Installation
 
 ### Prerequisites
-- Python 3.12+
-- `uv` package manager (`curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`)
 
-### 1. Installation & Environment Setup
+Ensure the following tools are installed on your workstation:
+
+1. **Python 3.12 or newer**
+2. **`uv` package manager** (required for deterministic dependency and virtual environment management):
+   ```bash
+   # Install via standalone installer or Homebrew
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # OR
+   brew install uv
+   ```
+3. **macOS 14.0+ (Sonoma or newer) & Xcode Command Line Tools** *(required only if building the native SwiftUI `Blackmarker Studio.app`)*:
+   ```bash
+   xcode-select --install
+   ```
+
+### Step 1: Clone & Synchronize Environment
 
 ```bash
-cd redact-gov
-uv sync
+git clone https://github.com/mr8lu/blackmarker-studio.git
+cd blackmarker-studio
+# (Or if cloned as ai-blackmarker: cd ai-blackmarker)
+
+# Create isolated .venv and install all core dependencies via uv
+uv sync --reinstall
 ```
 
-### 2. Build & Launch the Native macOS Utility (`AI Blackmarker.app`)
+### Step 2: Optional On-Device Google Gemma 4 E4B Setup
 
-AI Blackmarker ships a zero-Xcode-project Swift Package Manager macOS application (`build/AI Blackmarker.app`) with an Apple HIG superellipse icon (`assets/icon/AppIcon.icns`) paired with an ephemeral stdio JSON-RPC helper (`Contents/Helpers/redactgov-worker`):
-
-- **Menu Bar Quick-Scrub Droplet (`MenuBarExtra`):** Select any compliance profile (`FOIA`, `HIPAA`, `PCI DSS`, `GLBA`, `FRCP 5.2`, `SOC 2`), toggle `PII` / `PHI` / `PPI` pills, and drag-and-drop any PDF onto the macOS status bar highlighter icon.
-- **Interactive Manual Blackmarker Canvas:** Click **Draw Redaction** in the toolbar (or hold **Shift + Drag** anywhere on the PDF page) to draw a live cyan-rimmed Blackmarker marquee box and tag it with Federal FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, SOC 2, or State statutory citations.
-- **Customizable Certificate Template Sheet:** Click **Certificate Template** in the toolbar or sidebar to pick an industry preset or customize the Jurisdiction/Sector Banner, Framework Subtitle, Certificate Title, Organization/Hospital/Bank Name, and Legal Attestation statement.
-- **Ephemeral Worker Lifecycle (0 MB Idle VRAM):** Spawns `redactgov-worker` on demand over stdio pipes and automatically unloads **Google Gemma 4 E4B** after inactivity.
+Blackmarker Studio works out of the box using its high-precision deterministic and heuristic engines. To enable full Tier 2 neural inference with **Google Gemma 4 E4B** (`llama-cpp-python` with Apple Metal / CPU acceleration):
 
 ```bash
-# Generate Apple HIG AppIcon.icns, compile SwiftUI app, and assemble build/AI Blackmarker.app
+# Install optional llama-cpp-python bindings
+uv sync --extra llm
+
+# Download quantized Gemma 4 E4B GGUF weights into ./models/ for air-gapped operation
+uv run python scripts/download_gemma.py
+```
+
+---
+
+## Native macOS Studio & Menu Bar Droplet
+
+Blackmarker Studio ships a zero-Xcode-project Swift Package Manager macOS application (`build/Blackmarker Studio.app`) featuring an Apple Human Interface Guidelines superellipse icon (`assets/icon/AppIcon.icns`) and an embedded stdio JSON-RPC helper (`Contents/Helpers/redactgov-worker`).
+
+### Building & Launching `Blackmarker Studio.app`
+
+```bash
+# 1. Generate Apple HIG AppIcon.icns, compile Release SwiftUI binary, and assemble app bundle
 ./build.sh
 
-# Run the headless native bundle + worker self-test
-"./build/AI Blackmarker.app/Contents/MacOS/RedactGovApp" --self-test
+# 2. Run the automated headless bundle + JSON-RPC worker self-test
+"./build/Blackmarker Studio.app/Contents/MacOS/RedactGovApp" --self-test
 
-# Launch the native macOS AI Blackmarker Studio + Menu Bar app
-open "build/AI Blackmarker.app"
+# 3. Launch Blackmarker Studio
+open "build/Blackmarker Studio.app"
 ```
 
-### 3. CLI Usage
+### Studio Workflow & Manual Blackmarker (`Shift + Drag`)
+
+- **Menu Bar Quick-Scrub Droplet (`MenuBarExtra`):** Click the highlighter icon in the macOS status bar, pick any compliance profile (`FOIA`, `HIPAA`, `PCI DSS`, `GLBA`, `FRCP 5.2`, `SOC 2`), toggle `PII` / `PHI` / `PPI` domain pills, and drag-and-drop PDFs for instant one-step sanitization.
+- **Interactive Manual Blackmarker (`Shift + Drag`):** Click **Draw Redaction** in the studio toolbar - or hold **Shift + Drag** directly across any region of the PDF canvas - to draw a live cyan-rimmed Blackmarker marquee box over missed text, signatures, or badges.
+  - Blackmarker Studio automatically snaps to and resolves all underlying PDF word tokens inside your drawn rectangle.
+  - Assign any FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, or SOC 2 citation code to the manual box.
+  - Upon export, both the visual area and the underlying PDF content stream glyphs are permanently excised.
+- **Certificate Template Editor Sheet:** Click **Certificate Template** in the toolbar to select an industry preset or customize your organization name, header banner, and legal attestation before exporting.
+
+---
+
+## CLI & Web HITL Reference
+
+Blackmarker Studio installs the primary `blackmarker` and `blackmarker-studio` CLI commands (alongside legacy aliases `aiblackmarker` and `redactgov`).
+
+### 1. `blackmarker redact` - Sanitize PDF & Emit Certificate
 
 ```bash
-# Redact a healthcare record under HIPAA Safe Harbor (PII + PHI) with a HIPAA certificate preset
-uv run aiblackmarker redact clinical_note.pdf \
+# Redact a clinical record under HIPAA Safe Harbor (PII + PHI) with a formal certificate
+uv run blackmarker redact clinical_note.pdf \
+  --output clinical_note_redacted.pdf \
+  --cert clinical_note_certificate.pdf \
   --profile hipaa \
   --domains PII,PHI \
   --cert-preset hipaa_healthcare \
-  --agency "St. Mary Health System"
+  --agency "St. Mary Health System" \
+  --reviewer "Chief Privacy Officer"
 
-# Redact a financial wire statement for PPI only (PCI DSS & GLBA)
-uv run aiblackmarker redact wire_statement.pdf \
-  --profile pci_dss \
+# Redact a wire transfer statement for Payment & Financial data only (PPI)
+uv run blackmarker redact wire_statement.pdf \
+  --output wire_sanitized.pdf \
+  --cert wire_audit_cert.pdf \
+  --profile pci-dss \
   --domains PPI \
   --cert-preset banking_glba_pci \
   --agency "First National Bank Compliance"
 
-# List all supported regulatory citations & certificate presets
-uv run aiblackmarker statutes
-
-# Launch local FastAPI service for Human-in-the-Loop web review
-uv run aiblackmarker serve --port 8000
+# Redact a public records request while preserving non-sensitive coordinates
+uv run blackmarker redact environmental_permit.pdf \
+  --profile environmental-review \
+  --coordinate-policy sensitive-only
 ```
 
-### 4. Run Automated Test Suite
+### 2. `blackmarker audit` - Dry-Run Entity & Citation Inspection
+
+Inspect all detected `PII`, `PHI`, and `PPI` entities, bounding box counts, form context labels, and statutory citations in your terminal without modifying the source PDF:
 
 ```bash
-uv run pytest
+uv run blackmarker audit incident_report.pdf --profile public-foia --domains PII,PHI,PPI
 ```
+
+### 3. `blackmarker statutes`, `criteria`, & `inspect`
+
+```bash
+# Display the full multi-sector statutory & regulatory citation registry
+uv run blackmarker statutes
+
+# Inspect centralized role allowlists, form field rules, and coordinate policies
+uv run blackmarker criteria
+
+# Diagnose a PDF for broken font descriptors (FontBBox=None) or structural anomalies
+uv run blackmarker inspect malformed_scan.pdf
+```
+
+### 4. `blackmarker serve` - Local Human-in-the-Loop Web Studio
+
+Launch the air-gapped FastAPI + interactive Web HITL Reviewer (bound strictly to `127.0.0.1` by default):
+
+```bash
+uv run blackmarker serve --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000` in your browser to upload PDFs, toggle `PII` / `PHI` / `PPI` domains, draw manual redaction boxes on the HTML5 canvas, customize certificate templates, and download sanitized packages.
+
+---
+
+## Project Structure
+
+```text
+blackmarker-studio/
+├── Package.swift                 # SwiftPM manifest for native macOS app & RedactGovKit
+├── build.sh                      # Builds AppIcon.icns, Swift release binary & Blackmarker Studio.app
+├── pyproject.toml                # Python 3.12+ project metadata & CLI entrypoints (uv)
+├── uv.lock                       # Deterministic dependency lockfile
+├── BLUEPRINT.md                  # Technical architecture & commercialization blueprint
+├── CONTRIBUTING.md               # Contributor guide, testing standards & extension instructions
+├── SECURITY.md                   # Air-gapped threat model, stream verification & disclosure policy
+├── LICENSE                       # MIT License
+├── assets/
+│   └── icon/                     # Apple HIG superellipse icons (SVG, 512px, 1024px, AppIcon.icns)
+├── scripts/
+│   ├── download_gemma.py         # Air-gapped GGUF model downloader (Google Gemma 4 E4B)
+│   ├── generate_app_icon.py      # Procedural Apple HIG icon & .icns generator
+│   ├── generate_synthetic_pdfs.py# Synthetic FOIA / clinical / financial test PDF generator
+│   └── try_interactive.py        # Interactive CLI walkthrough script
+├── Sources/
+│   ├── RedactGovKit/             # Swift library: JSON-RPC WorkerClient, Vision OCR, SQLite store
+│   └── RedactGovApp/             # SwiftUI macOS Studio, MenuBarExtra droplet & PDFKit canvas
+├── src/
+│   └── redact_gov/
+│       ├── cli.py                # Typer CLI (blackmarker / blackmarker-studio)
+│       ├── config.py             # Runtime & model path configuration
+│       ├── pipeline.py           # End-to-end hybrid planning & execution pipeline
+│       ├── worker.py             # Ephemeral stdio JSON-RPC worker with idle VRAM watchdog
+│       ├── api/                  # Local FastAPI server & interactive Web HITL Studio UI
+│       ├── certificates/         # Polars + ReportLab Compliance Certificate PDF generator
+│       ├── core/                 # Pydantic models, statutes, criteria, geometry & normalizer
+│       └── engines/              # Tier 1 deterministic, Tier 2 Gemma 4 E4B & PikePDF sanitizer
+└── tests/                        # Comprehensive pytest suite (stream excision, OCR, API, statutes)
+```
+
+---
+
+## Running the Test Suite
+
+Blackmarker Studio enforces strict automated testing across byte-level PDF stream excision, multi-sector compliance profiles, form context evaluation, and native macOS bundle execution:
+
+```bash
+# Run the full Python pytest suite (70+ unit, integration, and byte-verification tests)
+uv run pytest
+
+# Run the native macOS Swift package tests
+swift test
+
+# Run the end-to-end macOS app bundle + stdio worker self-test
+"./build/Blackmarker Studio.app/Contents/MacOS/RedactGovApp" --self-test
+```
+
+---
+
+## Contributing & Security
+
+- **Contributing:** We welcome pull requests for new sector compliance profiles, statutory mappings, deterministic validators, and UI refinements! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting changes.
+- **Security & Sanitization Integrity:** Because Blackmarker Studio is engineered for high-assurance legal, clinical, and financial sanitization, any bypass where underlying glyphs survive redaction is treated as a critical security vulnerability. See [SECURITY.md](SECURITY.md) for our air-gapped verification architecture and responsible disclosure policy.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE). Copyright (c) 2026 Blackmarker Studio Contributors.

@@ -106,7 +106,7 @@ struct RedactGovMacApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("AI Blackmarker", id: "studio") {
+        WindowGroup("Blackmarker Studio", id: "studio") {
             SovereignStudioView(viewModel: viewModel)
                 .frame(minWidth: 1180, minHeight: 740)
                 .preferredColorScheme(.dark)
@@ -114,7 +114,7 @@ struct RedactGovMacApp: App {
         .defaultSize(width: 1380, height: 860)
 
         // Menu Bar Quick-Scrub Droplet
-        MenuBarExtra("AI Blackmarker", systemImage: "highlighter") {
+        MenuBarExtra("Blackmarker Studio", systemImage: "highlighter") {
             MenuBarDropletView(viewModel: viewModel)
                 .frame(width: 370)
                 .preferredColorScheme(.dark)
@@ -136,7 +136,7 @@ struct MenuBarDropletView: View {
                     .font(.title2)
                     .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.98))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("AI Blackmarker")
+                    Text("Blackmarker Studio")
                         .font(.headline)
                         .foregroundStyle(.white)
                     Text("FOIA • HIPAA • PCI DSS • GLBA • Air-Gapped")
@@ -997,11 +997,11 @@ struct StudioCenterCanvasView: View {
                                 .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.98))
                         }
 
-                        Text("AI Blackmarker")
+                        Text("Blackmarker Studio")
                             .font(.title2.weight(.bold))
                             .foregroundStyle(.white)
 
-                        Text("Air-Gapped Virginia FOIA (§ 2.2-3700) Redaction & PikePDF Stream Sanitization.\nSelect a sample docket from the left sidebar, open a PDF, or draw manual Blackmarker boxes.")
+                        Text("Air-Gapped Multi-Sector (FOIA • HIPAA • PCI DSS • GLBA • FRCP 5.2 • SOC 2) Redaction & PikePDF Stream Sanitization.\nSelect a sample docket from the left sidebar, open a PDF, or draw manual Blackmarker boxes.")
                             .font(.callout)
                             .foregroundStyle(Color(white: 0.76))
                             .multilineTextAlignment(.center)

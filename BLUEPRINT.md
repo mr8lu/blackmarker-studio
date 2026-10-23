@@ -1,30 +1,30 @@
-# AI Blackmarker (RedactGov): Project Execution & Commercialization Blueprint
+# Blackmarker Studio (RedactGov): Project Execution & Commercialization Blueprint
 
-**Product Name:** AI Blackmarker (Codename: RedactGov)  
-**Core Mission:** Sovereign, air-gapped FOIA/VFOIA document redaction and statutory compliance engine powered by on-device Small Language Models (Google Gemma 4 E4B), interactive Manual Blackmarker marquee drawing, and surgical PDF stream sanitization.  
+**Product Name:** Blackmarker Studio (Codename: RedactGov)  
+**Core Mission:** Sovereign, air-gapped multi-sector and FOIA/VFOIA document redaction and statutory compliance studio powered by on-device Small Language Models (Google Gemma 4 E4B), interactive Manual Blackmarker marquee drawing, and surgical PDF stream sanitization.  
 **Primary Target Sponsor:** Virginia Innovation Partnership Corporation (VIPC) - Commonwealth Commercialization Fund (CCF) Launch Grant ($50,000) & Virginia Venture Partners (VVP).
 
 ---
 
 ## 1. Executive Summary & Core Hypothesis
 
-Virginia local governments, school divisions, and municipal law enforcement agencies operate under a strict statutory mandate (Va. Code § 2.2-3700 et seq.) requiring public records release within five business days. Existing enterprise redaction suites carry prohibitive five-figure licensing hurdles and cloud data exfiltration risks. Conversely, manual redaction using rudimentary desktop tools invites catastrophic data leaks through incomplete layer sanitization (such as drawing black rectangles over text while leaving underlying text glyphs intact in the PDF byte stream).
+Virginia local governments, school divisions, and municipal law enforcement agencies operate under a strict statutory mandate (Va. Code § 2.2-3700 et seq.) requiring public records release within five business days, while healthcare systems, banks, and law firms face equally stringent HIPAA Safe Harbor, PCI DSS v4.0, GLBA, FRCP 5.2, and AICPA SOC 2 mandates. Existing enterprise redaction suites carry prohibitive five-figure licensing hurdles and cloud data exfiltration risks. Conversely, manual redaction using rudimentary desktop tools invites catastrophic data leaks through incomplete layer sanitization (such as drawing black rectangles over text while leaving underlying text glyphs intact in the PDF byte stream).
 
-AI Blackmarker bridges this gap with an air-gapped, zero-cloud desktop/server application. By uniting deterministic pattern matching, a locally hosted open-weight Google Gemma model (Google Gemma 4 E4B / 9B via llama.cpp with Apple Metal and CPU acceleration), interactive Manual Blackmarker marquee drawing, and low-level PDF stream surgery via PikePDF, AI Blackmarker automates 95% of pre-redaction chores while empowering human reviewers to draw custom redactions that surgically excise underlying PDF glyphs. Crucially, it maps withheld information directly to Virginia statutory exemptions, generating legally binding audit logs in seconds without exposing Criminal Justice Information Services (CJIS) or FERPA-governed data to commercial cloud APIs.
+Blackmarker Studio bridges this gap with an air-gapped, zero-cloud desktop/server application. By uniting deterministic pattern matching, a locally hosted open-weight Google Gemma model (Google Gemma 4 E4B via llama.cpp with Apple Metal and CPU acceleration), interactive Manual Blackmarker marquee drawing, and low-level PDF stream surgery via PikePDF, Blackmarker Studio automates 95% of pre-redaction chores while empowering human reviewers to draw custom redactions that surgically excise underlying PDF glyphs. Crucially, it maps withheld information directly to statutory and regulatory exemptions (`PII`, `PHI`, `PPI`), generating legally binding audit logs in seconds without exposing Criminal Justice Information Services (CJIS), HIPAA, or FERPA-governed data to commercial cloud APIs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           AI Blackmarker System Flow                        │
+│                         Blackmarker Studio System Flow                      │
 ├─────────────────────┬─────────────────────────────────┬─────────────────────┤
 │   Ingest & Parse    │  AI + Manual Blackmarker Plan   │  Surgical Scrubbing │
 │                     │                                 │                     │
-│  Scanned / Digital  │  Deterministic Regex + Presidio │  PikePDF Content    │
+│  Scanned / Digital  │  Deterministic Regex + Checksum │  PikePDF Content    │
 │  PDF Documents      │                +                │  Stream Deletion    │
 │         │           │  Gemma 4 E4B + Manual Marquee   │         +           │
 │         ▼           │                │                │  XMP Metadata Wipe  │
 │  Spatial Geometry   │                ▼                │         │           │
-│  Token Coordinates  │   Va. Code Exemption Classifier │         ▼           │
-│  (x0, y0, x1, y1)   │   (Juvenile, Informant, PII)    │  Sanitized PDF +    │
+│  Token Coordinates  │   Multi-Sector Citation Engine  │         ▼           │
+│  (x0, y0, x1, y1)   │   (FOIA, HIPAA, PCI, GLBA, PII) │  Sanitized PDF +    │
 │                     │                                 │  Audit Certificate  │
 └─────────────────────┴─────────────────────────────────┴─────────────────────┘
 ```
@@ -34,8 +34,8 @@ AI Blackmarker bridges this gap with an air-gapped, zero-cloud desktop/server ap
 ## 2. Technical Architecture Specification
 
 ### Core Processing Stack
-- **Runtime Environment:** Python 3.12+ orchestrated via `uv`, packaged with a local Web GUI (FastAPI + React/PDF.js) or desktop shell (Tauri).
-- **PDF Extraction & Geometry Engine:** `pdfplumber` and `pypdf` for digital-native text streams and character-level bounding boxes; native visual rasterizer (rendering high-DPI page pixmaps via `pypdf`/`pikepdf`) for scanned image inputs.
+- **Runtime Environment:** Python 3.12+ orchestrated via `uv`, packaged with a native macOS SwiftUI studio (`Blackmarker Studio.app`) and a local Web HITL GUI (FastAPI + HTML5 Canvas).
+- **PDF Extraction & Geometry Engine:** `pdfplumber` and `pypdf` for digital-native text streams and character-level bounding boxes; Apple `Vision` (`VNRecognizeTextRequest`) neural OCR and native visual rasterizer for scanned image inputs.
 - **Inference Runtime:** `llama-cpp-python` executing quantized GGUF weights of **Google Gemma 4 E4B** (Q4_K_M base model + `mmproj` multimodal vision projector, ~2.6 GB VRAM footprint) directly on local CPU / Apple Metal / NVIDIA hardware with zero external network connectivity.
 - **Sanitization & Burn-In Engine:** `pikepdf` (backed by the C++ QPDF engine) for deterministic content stream modification, font glyph excision (`Tj` and `TJ` operator rewriting), opaque vector polygon burning, and complete XMP/piece-info metadata eradication.
 - **Tabular Data & Audit Optimization:** Polars DataFrame engine for high-velocity aggregation and parsing of redaction logs, token boundaries, and compliance certificates.
@@ -43,34 +43,34 @@ AI Blackmarker bridges this gap with an air-gapped, zero-cloud desktop/server ap
 ### The Hybrid Inference Pipeline
 
 1. **Tier 1 (Deterministic Fast Path - Sub-second):**
-   - High-confidence regex and algorithmic validators targeting formatted PII: Social Security Numbers (SSNs), Virginia Driver's License numbers (1 letter + 8 digits), credit card tokens, standard phone formats, and dates of birth.
-   - Algorithmic checks (Luhn validation, state license checksums).
+   - High-confidence regex and algorithmic validators targeting formatted `PII`, `PHI`, and `PPI`: Social Security Numbers (SSNs), Driver's License numbers, Passports, Luhn-validated credit card PANs, Mod-10 ABA routing numbers, NPIs, MRNs, ICD-10 codes, standard phone formats, and dates of birth.
+   - Algorithmic checks (Luhn validation, Mod-10 routing weights, state license formats).
    - Instant bounding box generation for verbatim matches.
 
 2. **Tier 2 (Cognitive Context & Multimodal Vision Path - Google Gemma 4 E4B):**
    - **Dual-Modal Selective Architecture:**
      - *Text Ingestion Mode (Digital-Native):* High-speed batch text ingestion (~0.1-0.3s/page) using constrained JSON grammar outputs (BNF / JSON Schema enforcement).
-     - *Native Vision Mode (Scans & Images):* For flattened scans (<20 digital text characters), handwritten margin notes, signatures, official seals, or crime scene / aerial photos, the engine invokes Gemma 4 E4B's native vision projector (`mmproj-gemma-4-e4b.gguf`) to visually parse and localize sensitive entities without requiring external OCR C-dependencies.
-   - Deep classification of protected Virginia statutory legal categories:
+     - *Native Vision Mode (Scans & Images):* For flattened scans (<20 digital text characters), handwritten margin notes, signatures, official seals, or crime scene / aerial photos, the engine invokes Gemma 4 E4B's native vision projector (`mmproj-gemma-4-e4b.gguf`) and Apple Vision OCR to visually parse and localize sensitive entities.
+   - Deep classification of protected statutory and regulatory categories:
      - **Juvenile Identifiers (Va. Code § 16.1-301):** Names, ages, grade levels, juvenile court docket markers, and youth shelter identifiers.
      - **Victim / Witness Safeguards (Va. Code § 19.2-11.2):** Domestic abuse victim descriptors, non-public addresses, protective order details, and 911 caller identities.
      - **Undercover Personnel & Informants (Va. Code § 2.2-3705.2):** Operational unit tags, confidential informant monikers, undercover officer identities, and tactical codes.
-     - **Personnel & Privacy Exemptions (Va. Code § 2.2-3705.1):** Personal contact info of non-official individuals, medical data, banking/financial accounts.
+     - **Personnel, Clinical & Financial Exemptions (FOIA / HIPAA / GLBA / PCI DSS):** Personal contact info of non-official individuals, medical diagnoses, and banking/financial accounts.
      - **Handwritten Signatures & Visual PII:** Direct visual localization of handwritten signatures, private citizen fingerprints, or sensitive photographs.
-     - **Exclusion Heuristics:** Public figures, elected county supervisors, school board chairs, and official agency spokespersons are explicitly allowlisted from accidental redaction.
+     - **Exclusion Heuristics:** Public figures, elected county supervisors, school board chairs, and official agency spokespersons are explicitly allowlisted from accidental redaction under FOIA profiles.
 
 3. **Spatial Alignment & PikePDF Burn-In:**
-   - **Coordinate Reconciliation:** Matching string token offsets returned by Google Gemma 4 E4B against raw geometric bounding boxes `(x0, y0, x1, y1)` extracted from the source PDF.
-   - **Content Stream Parsing:** Decompressing page object streams, replacing matching glyph operators (`Tj`, `TJ`) with null spaces / dummy positions, superimposing opaque black raster/vector polygons directly on the canvas, and stripping `/Metadata` streams to preclude copy-paste and layer exfiltration.
-   - **Post-Redaction Verification Spike:** Automated automated testing inspecting every token in the output binary to guarantee 0 string hits in both text extraction and uncompressed byte stream scans.
+   - **Coordinate Reconciliation:** Matching string token offsets returned by Google Gemma 4 E4B and Manual Blackmarker marquee boxes against raw geometric bounding boxes `(x0, y0, x1, y1)` extracted from the source PDF.
+   - **Content Stream Parsing:** Decompressing page object streams, replacing matching glyph operators (`Tj`, `TJ`) with null spaces / dummy positions, superimposing opaque black vector polygons directly on the canvas, and stripping `/Metadata` streams to preclude copy-paste and layer exfiltration.
+   - **Post-Redaction Verification Spike:** Automated testing inspecting every token in the output binary to guarantee 0 string hits in both text extraction and uncompressed byte stream scans.
 
 ---
 
-## 3. Virginia Statutory Exemption Mapping
+## 3. Statutory & Multi-Sector Exemption Mapping
 
-RedactGov natively indexes and cites Virginia Code sections on every redaction:
+Blackmarker Studio natively indexes and cites Virginia Code, Federal FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, and AICPA SOC 2 sections on every redaction:
 
-| Statute Code | Short Title | Description & Redaction Policy |
+| Statute / Rule Code | Short Title | Description & Redaction Policy |
 | :--- | :--- | :--- |
 | **Va. Code § 2.2-3705.1(1)** | Personnel Records | Personal identifying information of public employees held in personnel files. |
 | **Va. Code § 2.2-3705.1(10)** | Personal Privacy / PII | Social Security Numbers, personal contact numbers, and private financial identifiers. |
@@ -78,6 +78,9 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 | **Va. Code § 2.2-3705.4(1)** | Scholastic Records | Student disciplinary records, grade sheets, IEP files, and identifiable student data. |
 | **Va. Code § 16.1-301** | Juvenile Law-Enforcement Records | Any record identifying a child or juvenile subject to law-enforcement investigation. |
 | **Va. Code § 19.2-11.2** | Crime Victim & Witness Protection | Names, addresses, and phone numbers of victims and witnesses in criminal proceedings. |
+| **HIPAA 45 CFR § 164.514(b)** | HIPAA Safe Harbor PHI | Medical Record Numbers (MRNs), NPIs, Health Plan IDs, ICD-10 codes, and clinical notes. |
+| **PCI DSS v4.0 Req. 3.3/3.4** | Payment Cardholder Data (PPI) | Luhn-validated Primary Account Numbers (PANs), CVV/CVC security codes, and track data. |
+| **GLBA 16 CFR Part 314** | Nonpublic Personal Financial Info | ABA routing numbers, checking/savings/wire account numbers, and IBAN/SWIFT identifiers. |
 
 ---
 
@@ -87,19 +90,19 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 2026 Milestone Schedule
 ┌────────────────┬────────────────────────────────────────────────────────────┐
 │ Phase 0        │ Architecture Spike & Sanitization Testbed                  │
-│ Weeks 1 - 2    │ (PikePDF Burn-In Verification + Gemma 2 Prompt Prototype)  │
+│ Weeks 1 - 2    │ (PikePDF Burn-In Verification + Gemma 4 E4B Prototype)     │
 ├────────────────┼────────────────────────────────────────────────────────────┤
-│ Phase 1        │ Alpha Engine & Virginia Statute Mapping                    │
-│ Weeks 3 - 5    │ (Gemma 2 Grammars, JSON Schemas, Spatial Geometry Align)   │
+│ Phase 1        │ Alpha Engine & Multi-Sector Statute Mapping                │
+│ Weeks 3 - 5    │ (Gemma 4 Grammars, JSON Schemas, Spatial Geometry Align)   │
 ├────────────────┼────────────────────────────────────────────────────────────┤
-│ Phase 2        │ Reviewer UI & Exemption Log Generator                      │
-│ Weeks 6 - 8    │ (Human-in-the-Loop Web Interface + Audit Certificate)      │
+│ Phase 2        │ Native macOS Studio, Web HITL & Certificate Generator      │
+│ Weeks 6 - 8    │ (Blackmarker Studio.app + Shift+Drag Marquee + Audit Cert) │
 ├────────────────┼────────────────────────────────────────────────────────────┤
 │ Phase 3        │ VIPC CCF Application & Municipal Pilot Setup              │
 │ Weeks 9 - 11   │ (Grant Submission, 1-2 VA County Clerk Beta Trials)        │
 ├────────────────┼────────────────────────────────────────────────────────────┤
 │ Phase 4        │ Production Hardening & Packaging                          │
-│ Weeks 12 - 16  │ (Docker / Tauri Distributable, VPPA Micro-Purchase Launch) │
+│ Weeks 12 - 16  │ (Signed macOS Bundle / Docker, VPPA Micro-Purchase Launch) │
 └────────────────┴────────────────────────────────────────────────────────────┘
 ```
 
@@ -109,15 +112,15 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 - Exit Gate: Zero residual metadata in output binaries; 100% true burn-in without display artifacts.
 
 ### Phase 1: Contextual Inference & Geometry Engine (Weeks 3 - 5)
-- Construct the spatial mapper translating Gemma 2 string matches back to PDF point coordinates.
+- Construct the spatial mapper translating Gemma 4 E4B string matches back to PDF point coordinates.
 - Implement structured output grammars using `llama-cpp-python` enforcing the standard schema (`verbatim_text`, `statutory_code`, `confidence`).
-- Calibrate the prompt matrix against common Virginia legal exemptions.
+- Calibrate the prompt matrix against common Virginia legal exemptions and multi-sector `PII` / `PHI` / `PPI` rules.
 - Exit Gate: Sub-10-second processing time for a typical 5-page public records document on standard commercial laptop hardware.
 
 ### Phase 2: Human-in-the-Loop Review Interface (Weeks 6 - 8)
-- Build a lightweight local web interface using React and PDF.js connected to FastAPI.
-- Feature set: Visual bounding box overlays color-coded by confidence, single-click approve/reject toggles, manual marquee box drawing, and batch redaction overrides.
-- Export mechanism: Dual artifact production - (1) The sanitized PDF, and (2) The formal "Virginia FOIA Redaction Certificate" itemizing page numbers, timestamps, and statutory citations.
+- Build both the native macOS SwiftUI application (`Blackmarker Studio.app`) and the lightweight local Web HITL interface connected to FastAPI.
+- Feature set: Visual bounding box overlays color-coded by confidence, single-click approve/reject toggles, interactive Manual Blackmarker marquee drawing (`Shift + Drag`), and customizable certificate presets.
+- Export mechanism: Dual artifact production - (1) The sanitized PDF, and (2) The formal "Compliance & Redaction Certificate" itemizing page numbers, timestamps, and statutory citations.
 - Exit Gate: Complete document review workflow operational end-to-end.
 
 ### Phase 3: VIPC Commonwealth Commercialization Fund (CCF) Pitch (Weeks 9 - 11)
@@ -127,8 +130,8 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 - Exit Gate: Formal submission of VIPC CCF application; active beta testing with pilot partners.
 
 ### Phase 4: Production Hardening & Commercial Release (Weeks 12 - 16)
-- Package application as a turnkey Docker container (for municipal IT deployments) and an isolated desktop executable (via Tauri).
-- Integrate non-destructive Tesseract OCR pipeline for degraded facsimile and scan inputs.
+- Package application as a turnkey native macOS bundle (`Blackmarker Studio.app`) and an isolated Docker container for municipal IT deployments.
+- Integrate non-destructive Apple Vision and local OCR pipelines for degraded facsimile and scan inputs.
 - Launch commercial small-tier licensing under Virginia Public Procurement Act micro-purchase thresholds.
 
 ---
@@ -142,6 +145,7 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
   1. **Municipal Clerks & FOIA Coordinators:** 133 cities and counties throughout the Commonwealth.
   2. **Virginia School Boards:** Over 130 school divisions processing student disciplinary records, IEP disclosures, and parent FOIA filings.
   3. **Sheriff Offices & Town Police Departments:** Redacting incident narratives, dispatch recordings, and traffic stop reports for media inquiries.
+  4. **Regional Healthcare Clinics & Community Banks:** De-identifying clinical notes under HIPAA Safe Harbor and scrubbing account statements under GLBA / PCI DSS.
 
 ---
 
@@ -153,7 +157,7 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 | :--- | :--- | :--- |
 | **Model Optimization & Tuning** | $18,000 | Quantization, synthetic Virginia FOIA training corpora creation, and Google Gemma 4 E4B prompt calibration for low-power endpoints. |
 | **PDF Engineering & Security Audit** | $16,000 | Hardening the PikePDF stream sanitization pipeline, memory safety checks, and forensic byte extraction validation. |
-| **Frontend & Packaging** | $10,000 | Local UI development, PDF.js spatial coordinate engine, and Tauri cross-platform compilation. |
+| **Frontend & Packaging** | $10,000 | Native macOS SwiftUI Studio (`Blackmarker Studio.app`), Web HITL spatial coordinate engine, and cross-platform packaging. |
 | **Pilot Support & Legal Consultation** | $6,000 | Onboarding municipal beta partners in Virginia; review of statutory exemption tags with Virginia administrative law specialists. |
 
 ### Follow-On Trajectory: Virginia Venture Partners (VVP)
@@ -168,19 +172,19 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
 
 | Module / Capability | Current State | Beta Target | Priority | Status / Path |
 | :--- | :--- | :--- | :--- | :--- |
-| **Multimodal Vision & Scanned Records** | Digital-native only (`pdfplumber`) | Gemma 4 E4B Native Vision (`mmproj`) | **P0 (Blocker)** | Activate Gemma 4 E4B vision projector on image-only pages (<20 chars), signatures, and handwritten notes. |
-| **Human-in-the-Loop UI** | Headless FastAPI + Typer CLI | Visual PDF.js review interface | **P0 (Blocker)** | Lightweight canvas overlay to approve, modify, or add redaction boxes. |
-| **Air-Gapped Packaging** | CLI via `uv run` | Single-click desktop / Docker bundle | **P1 (Critical)** | Package via Tauri desktop shell (.dmg/.msi) and offline `docker-compose`. |
-| **Async Processing Queue** | Synchronous in-memory | Chunked background processing | **P1 (Critical)** | Stream large docs (100-500+ pages) without HTTP timeout or OOM. |
+| **Multimodal Vision & Scanned Records** | Digital + Apple Vision OCR + Gemma 4 Vision | Gemma 4 E4B Native Vision (`mmproj`) | **P0 (Complete)** | Active on image-only pages (<20 chars), signatures, and handwritten notes. |
+| **Human-in-the-Loop UI** | Native macOS SwiftUI + FastAPI Web HITL | Visual PDFKit & HTML5 review canvas | **P0 (Complete)** | Interactive canvas overlay to approve, modify, or `Shift + Drag` redaction boxes. |
+| **Air-Gapped Packaging** | Native `Blackmarker Studio.app` + `uv` CLI | Single-click desktop / Docker bundle | **P1 (Complete)** | Packaged via `./build.sh` (`Blackmarker Studio.app`) with ephemeral worker. |
+| **Async Processing Queue** | Ephemeral stdio JSON-RPC worker | Chunked background processing | **P1 (Active)** | Stream large docs (100-500+ pages) with idle VRAM watchdog unloading. |
 | **Model Distribution** | Standalone HF download script | Pre-bundled quantized weights | **P2 (Operational)** | Pre-package `gemma-4-e4b-it-Q4_K_M.gguf` + `mmproj` in installer. |
 
 ### 7.2 Air-Gapped Model Architecture (No Download Scripts in Production)
-- **Firewall & Air-Gap Compliance:** Municipal and law enforcement networks block outbound connections to Hugging Face. The application installer must co-locate quantized GGUF weights directly in `./models/`:
+- **Firewall & Air-Gap Compliance:** Municipal and law enforcement networks block outbound connections to Hugging Face. The application installer co-locates quantized GGUF weights directly in `./models/`:
   - `gemma-4-e4b-it-Q4_K_M.gguf`: Base language model (~2.2 GB).
   - `mmproj-gemma-4-e4b-f16.gguf`: Vision projector module (~400 MB) for native image/scan parsing.
 - **Dual-Modal Performance Optimization:**
   - Standard digital text streams bypass the vision projector completely to maintain sub-second speed (~0.1-0.3s/page).
-  - Scanned pages, flattened faxes, and visual form boxes activate the vision projector (~2-4s/page), extracting entities and handwritten signatures directly into the unified Virginia FOIA coordinate pipeline.
+  - Scanned pages, flattened faxes, and visual form boxes activate Apple Vision OCR and the Gemma 4 vision projector (~2-4s/page), extracting entities and handwritten signatures directly into the unified coordinate pipeline.
 - **Gated Model Mitigation:** Avoids requiring county staff to manage Hugging Face user tokens (`HF_TOKEN`) or accept individual cloud licenses.
 - **Deterministic Fallback:** When model weights are absent or loading fails, `ContextualGemmaEngine` automatically degrades to high-precision heuristic rule extraction without interrupting the user.
 
@@ -198,4 +202,3 @@ RedactGov natively indexes and cites Virginia Code sections on every redaction:
    - Target 3 Virginia counties (e.g., Campbell, Bedford, Pittsylvania) for zero-cost 60-day air-gapped pilot deployments.
    - Secure 2 Letters of Intent (LOIs) from participating clerks to accompany the $50,000 grant application.
    - Secure formal Legal Opinion Letter validating PikePDF low-level stream excision against statutory public disclosure standards.
-

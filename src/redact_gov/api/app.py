@@ -1,4 +1,4 @@
-"""FastAPI local service for AI Blackmarker Human-in-the-Loop review interface."""
+"""FastAPI local service for Blackmarker Studio Human-in-the-Loop review interface."""
 
 import shutil
 import uuid
@@ -21,7 +21,7 @@ from redact_gov.core.statutes import list_statutes
 from redact_gov.pipeline import RedactionPipeline
 
 app = FastAPI(
-    title="AI Blackmarker Sovereign Redaction API",
+    title="Blackmarker Studio Sovereign Redaction API",
     description="Local on-device API for air-gapped FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2 & AICPA redaction and customizable compliance certificates.",
     version="0.4.0",
 )

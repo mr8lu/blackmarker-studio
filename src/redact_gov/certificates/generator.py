@@ -187,7 +187,7 @@ class CertificateGenerator:
             [cfg.reviewer_role_label, cfg.reviewer_name],
             ["Compliance Profile & Domains:", f"{profile_str} ({domains_str})"],
             ["Timestamp (UTC):", now_str],
-            ["Execution Mode:", "100% Air-Gapped On-Device (AI Blackmarker)"],
+            ["Execution Mode:", "100% Air-Gapped On-Device (Blackmarker Studio)"],
         ]
 
         meta_table = Table(meta_data, colWidths=[2.3 * inch, 4.7 * inch])

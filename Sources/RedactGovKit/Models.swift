@@ -63,7 +63,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "Multi-Sector Information Governance • FOIA • HIPAA • PCI DSS • GLBA • SOC 2",
                 certificateTitle: "CERTIFICATE OF REDACTION & STREAM SANITIZATION",
                 agencyName: "Information Security & Privacy Office",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "The undersigned certifies that the referenced document has been sanitized using deterministic stream-level glyph excision (PikePDF/QPDF). All approved Personally Identifiable Information (PII), Protected Health Information (PHI), and Personal Payment/Financial Information (PPI) have been permanently removed from the underlying PDF content streams, XMP metadata has been eradicated, and zero-residual byte verification has passed."
             )
         case .publicFoia:
@@ -73,7 +73,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "Freedom of Information Act (5 U.S.C. § 552 / Va. Code § 2.2-3700 et seq.)",
                 certificateTitle: "OFFICIAL FOIA REDACTION & SANITIZATION CERTIFICATE",
                 agencyName: "Public Records & FOIA Compliance Office",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "Pursuant to Va. Code § 2.2-3704.01 and 5 U.S.C. § 552(b), the undersigned certifies that the exemptions cited above apply to the excised portions of this record, and that all non-exempt portions of the public record have been released intact."
             )
         case .hipaaHealthcare:
@@ -83,7 +83,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "HIPAA Privacy Rule Safe Harbor Standard (45 CFR § 164.514(b)(2))",
                 certificateTitle: "HIPAA PHI DE-IDENTIFICATION & SANITIZATION CERTIFICATE",
                 agencyName: "Health Information Privacy & Compliance Office",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "Pursuant to 45 CFR § 164.514(b)(2) (HIPAA Safe Harbor Method), the undersigned certifies that Protected Health Information (PHI), Medical Record Numbers, NPIs, ICD-10 clinical identifiers, and patient identifiers listed above have been permanently excised from the PDF content streams with zero residual text."
             )
         case .bankingGlbaPci:
@@ -93,7 +93,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "PCI DSS v4.0 Req. 3.4 • Gramm-Leach-Bliley Act (15 U.S.C. § 6801 / 16 CFR Part 314)",
                 certificateTitle: "PCI DSS / GLBA FINANCIAL SANITIZATION CERTIFICATE",
                 agencyName: "Financial Information Security & Risk Governance",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "Pursuant to PCI DSS v4.0 Requirement 3.4 and the GLBA Safeguards Rule (16 CFR Part 314), the undersigned certifies that Primary Account Numbers (PAN), routing/IBAN identifiers, and nonpublic personal financial information (NPI/PPI) have been irreversibly removed from the PDF object streams."
             )
         case .judicialFrcp:
@@ -103,7 +103,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "Federal Rule of Civil Procedure 5.2 / Federal Rule of Criminal Procedure 49.1",
                 certificateTitle: "RULE 5.2 PRIVACY REDACTION CERTIFICATE",
                 agencyName: "Office of the Clerk / Litigation Compliance",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "Pursuant to Fed. R. Civ. P. 5.2(a), the undersigned certifies that Social Security numbers, taxpayer-identification numbers, birth dates, minor initials/names, and financial-account numbers have been redacted prior to public docket filing."
             )
         case .enterpriseAicpa:
@@ -113,7 +113,7 @@ public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Id
                 frameworkSubtitle: "AICPA Trust Services Criteria (SOC 2 CC6.1 / P4.2 / C1.2)",
                 certificateTitle: "CONFIDENTIAL & PII/PHI/PPI SANITIZATION CERTIFICATE",
                 agencyName: "Enterprise GRC & Audit Assurance",
-                reviewerName: "AI Blackmarker Sovereign Engine",
+                reviewerName: "Blackmarker Studio Sovereign Engine",
                 attestationStatement: "In accordance with AICPA Trust Services Criteria for Confidentiality (C1.2) and Privacy (P4.2), the undersigned certifies that sensitive personal, health, and financial data elements have been permanently sanitized and verified free of residual underlying text."
             )
         }

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# AI Blackmarker Native macOS App Bundle Builder (SwiftPM + Ephemeral Helper + HIG Icon Packaging)
+# Blackmarker Studio Native macOS App Bundle Builder (SwiftPM + Ephemeral Helper + HIG Icon Packaging)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
-APP_BUNDLE="${BUILD_DIR}/AI Blackmarker.app"
+APP_BUNDLE="${BUILD_DIR}/Blackmarker Studio.app"
+AI_LEGACY_BUNDLE="${BUILD_DIR}/AI Blackmarker.app"
 LEGACY_BUNDLE="${BUILD_DIR}/RedactGov.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
@@ -17,13 +18,13 @@ if [[ ! -f "${ROOT_DIR}/assets/icon/AppIcon.icns" ]]; then
     uv run python scripts/generate_app_icon.py
 fi
 
-echo "[2/5] Building SwiftUI AI Blackmarker (Release)..."
+echo "[2/5] Building SwiftUI Blackmarker Studio (Release)..."
 swift build -c release --product RedactGovApp
 
 BIN_PATH="$(swift build -c release --show-bin-path)/RedactGovApp"
 
-echo "[3/5] Assembling AI Blackmarker.app bundle structure..."
-rm -rf "${APP_BUNDLE}" "${LEGACY_BUNDLE}"
+echo "[3/5] Assembling Blackmarker Studio.app bundle structure..."
+rm -rf "${APP_BUNDLE}" "${AI_LEGACY_BUNDLE}" "${LEGACY_BUNDLE}"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${BIN_PATH}" "${MACOS_DIR}/RedactGovApp"
@@ -39,10 +40,12 @@ cat > "${HELPERS_DIR}/redactgov-worker" <<EOF
 set -euo pipefail
 export REDACTGOV_WORKSPACE_ROOT="${ROOT_DIR}"
 cd "${ROOT_DIR}"
-if [[ -x "${ROOT_DIR}/.venv/bin/redactgov" ]]; then
+if [[ -x "${ROOT_DIR}/.venv/bin/blackmarker" ]]; then
+    exec "${ROOT_DIR}/.venv/bin/blackmarker" worker "\$@"
+elif [[ -x "${ROOT_DIR}/.venv/bin/redactgov" ]]; then
     exec "${ROOT_DIR}/.venv/bin/redactgov" worker "\$@"
 else
-    exec uv run redactgov worker "\$@"
+    exec uv run blackmarker worker "\$@"
 fi
 EOF
 chmod +x "${HELPERS_DIR}/redactgov-worker"
@@ -59,19 +62,19 @@ cat > "${CONTENTS_DIR}/Info.plist" <<EOF
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>gov.virginia.foia.AIBlackmarker</string>
+    <string>studio.blackmarker.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>AI Blackmarker</string>
+    <string>Blackmarker Studio</string>
     <key>CFBundleDisplayName</key>
-    <string>AI Blackmarker</string>
+    <string>Blackmarker Studio</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>0.4.0</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>4</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
@@ -84,6 +87,7 @@ EOF
 
 echo "[5/5] Ad-hoc signing ${APP_BUNDLE}..."
 codesign --force --deep --sign - "${APP_BUNDLE}"
+cp -R "${APP_BUNDLE}" "${AI_LEGACY_BUNDLE}"
 cp -R "${APP_BUNDLE}" "${LEGACY_BUNDLE}"
 
 echo "Built native macOS bundle: ${APP_BUNDLE}"
