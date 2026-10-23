@@ -7,7 +7,7 @@ import SwiftUI
 public enum PreviewDocumentMode: String, CaseIterable, Identifiable {
     case annotatedSource = "Source & Plan"
     case sanitizedOutput = "Sanitized PDF"
-    case foiaCertificate = "FOIA Certificate"
+    case foiaCertificate = "Certificate"
 
     public var id: String { rawValue }
 
@@ -32,6 +32,12 @@ public enum EntityApprovalFilter: String, CaseIterable, Identifiable {
 }
 
 public enum ManualStatuteOption: String, CaseIterable, Identifiable {
+    case federalFoiaPrivacy = "5 U.S.C. § 552(b)(6)"
+    case hipaaSafeHarbor = "45 CFR § 164.514(b)"
+    case pciDssPan = "PCI DSS v4.0 Req. 3.4"
+    case glbaFinancial = "16 CFR Part 314 (GLBA)"
+    case frcp52Filing = "Fed. R. Civ. P. 5.2(a)"
+    case aicpaSoc2 = "AICPA TSC CC6.1 / P4.2"
     case personnelPrivacy = "Va. Code § 2.2-3705.1(1)"
     case ssnProtection = "Va. Code § 2.2-3808.1"
     case lawEnforcement = "Va. Code § 2.2-3706"
@@ -43,18 +49,30 @@ public enum ManualStatuteOption: String, CaseIterable, Identifiable {
 
     public var displayLabel: String {
         switch self {
+        case .federalFoiaPrivacy:
+            return "5 U.S.C. § 552(b)(6) • Federal FOIA Privacy"
+        case .hipaaSafeHarbor:
+            return "45 CFR § 164.514(b) • HIPAA Safe Harbor PHI"
+        case .pciDssPan:
+            return "PCI DSS v4.0 Req. 3.4 • Cardholder PAN / Track"
+        case .glbaFinancial:
+            return "16 CFR Part 314 (GLBA) • Nonpublic Financial Info"
+        case .frcp52Filing:
+            return "Fed. R. Civ. P. 5.2(a) • Judicial Privacy Filing"
+        case .aicpaSoc2:
+            return "AICPA TSC CC6.1 / P4.2 • SOC 2 Confidentiality"
         case .personnelPrivacy:
-            return "§ 2.2-3705.1(1) • Personnel & Privacy"
+            return "Va. Code § 2.2-3705.1(1) • Personnel & Privacy"
         case .ssnProtection:
-            return "§ 2.2-3808.1 • SSN & Account IDs"
+            return "Va. Code § 2.2-3808.1 • SSN & Account IDs"
         case .lawEnforcement:
-            return "§ 2.2-3706 • Law Enforcement & Victims"
+            return "Va. Code § 2.2-3706 • Law Enforcement & Victims"
         case .juvenileRecords:
-            return "§ 2.2-3705.7(2) • Juvenile Identifiers"
+            return "Va. Code § 2.2-3705.7(2) • Juvenile Identifiers"
         case .investigative:
-            return "§ 2.2-3705.3 • Administrative Investigation"
+            return "Va. Code § 2.2-3705.3 • Administrative Investigation"
         case .endangeredSpecies:
-            return "§ 2.2-3705.7(26) • Critical Habitat / Species"
+            return "Va. Code § 2.2-3705.7(26) • Critical Habitat / Species"
         }
     }
 }
@@ -67,6 +85,7 @@ public final class AppViewModel: ObservableObject {
     @Published public var lastResult: RedactionResultPayload?
     @Published public var selectedEntityID: String?
     @Published public var releaseProfile: ReleaseProfileChoice = .publicFoia
+    @Published public var activeDomains: Set<DataDomainChoice> = [.pii, .phi, .ppi]
     @Published public var coordinatePolicy: CoordinatePolicyChoice = .all
     @Published public var autoRepairImperfect: Bool = true
     @Published public var useAppleVisionOCR: Bool = true
@@ -84,7 +103,10 @@ public final class AppViewModel: ObservableObject {
     @Published public var isDropTargeted: Bool = false
     @Published public var isInspectorVisible: Bool = true
     @Published public var isManualDrawMode: Bool = false
-    @Published public var manualStatute: ManualStatuteOption = .personnelPrivacy
+    @Published public var manualStatute: ManualStatuteOption = .federalFoiaPrivacy
+    @Published public var certificatePreset: CertificatePresetChoice = .genericCompliance
+    @Published public var certificateConfig: CertificateConfigPayload = CertificatePresetChoice.genericCompliance.defaultConfig
+    @Published public var isCertificateSheetPresented: Bool = false
 
     public let workerClient: WorkerClient
     public let indexStore: CaseIndexStore
@@ -97,6 +119,40 @@ public final class AppViewModel: ObservableObject {
         self.indexStore = CaseIndexStore()
         self.docketEntries = indexStore.searchDocket(query: "")
         discoverSyntheticSamples()
+    }
+
+    public var enabledDomainStrings: [String] {
+        DataDomainChoice.allCases.filter { activeDomains.contains($0) }.map(\.rawValue)
+    }
+
+    public func isDomainActive(_ domain: DataDomainChoice) -> Bool {
+        activeDomains.contains(domain)
+    }
+
+    public func toggleDomain(_ domain: DataDomainChoice) {
+        if activeDomains.contains(domain) {
+            if activeDomains.count > 1 {
+                activeDomains.remove(domain)
+            }
+        } else {
+            activeDomains.insert(domain)
+        }
+        if let url = selectedPDFURL {
+            Task { await loadAndAnalyze(pdfURL: url) }
+        }
+    }
+
+    public func applyProfileDefaults(_ profile: ReleaseProfileChoice) {
+        activeDomains = profile.defaultDomains
+        coordinatePolicy = profile == .environmentalReview ? .sensitiveOnly : .all
+        let preset = profile.defaultCertificatePreset
+        certificatePreset = preset
+        certificateConfig = preset.defaultConfig
+    }
+
+    public func applyCertificatePreset(_ preset: CertificatePresetChoice) {
+        certificatePreset = preset
+        certificateConfig = preset.defaultConfig
     }
 
     public func discoverSyntheticSamples() {
@@ -128,6 +184,7 @@ public final class AppViewModel: ObservableObject {
             $0.text.lowercased().contains(q)
                 || $0.category.lowercased().contains(q)
                 || $0.statuteCode.lowercased().contains(q)
+                || ($0.dataDomain?.lowercased().contains(q) ?? false)
                 || ($0.contextLabel?.lowercased().contains(q) ?? false)
         }
     }
@@ -179,13 +236,18 @@ public final class AppViewModel: ObservableObject {
     }
 
     public func loadAndAnalyze(pdfURL: URL) async {
+        let isSameDocument = selectedPDFURL?.standardizedFileURL == pdfURL.standardizedFileURL
+        let preservedManualItems: [RedactionEntityItem] = isSameDocument
+            ? (currentPlan?.entities.filter { $0.tier == "manual_blackmarker" || $0.category == "manual_redaction" } ?? [])
+            : []
+
         selectedPDFURL = pdfURL
         previewMode = .annotatedSource
         lastResult = nil
         errorMessage = nil
         isBusy = true
         workerState = .spawning
-        statusMessage = "Running Apple Vision check & spawning ephemeral worker for \(pdfURL.lastPathComponent)..."
+        statusMessage = "Scanning \(pdfURL.lastPathComponent) [\(enabledDomainStrings.joined(separator: "+"))]..."
 
         let shouldUseVision = useAppleVisionOCR
         let extractedSpans: [VisionOCRSpan] = await Task.detached(priority: .userInitiated) {
@@ -198,18 +260,22 @@ public final class AppViewModel: ObservableObject {
             let inspection = try await workerClient.inspectDocument(pdfURL: pdfURL)
             inspectionReport = inspection
 
-            let plan = try await workerClient.createPlan(
+            var plan = try await workerClient.createPlan(
                 pdfURL: pdfURL,
                 profile: releaseProfile,
                 coordinatePolicy: coordinatePolicy,
+                enabledDomains: enabledDomainStrings,
                 repair: autoRepairImperfect,
                 visionSpans: extractedSpans
             )
+            if !preservedManualItems.isEmpty {
+                plan.entities = preservedManualItems + plan.entities
+            }
             currentPlan = plan
             selectedEntityID = plan.entities.first?.id
             workerState = .activeReady
             let approvedCount = plan.entities.filter(\.approved).count
-            statusMessage = "Detected \(approvedCount) statutory targets across \(plan.totalPages) page(s). Worker warm."
+            statusMessage = "Detected \(approvedCount) targets (\(enabledDomainStrings.joined(separator: ", "))) across \(plan.totalPages) page(s)."
         } catch {
             workerState = .error
             errorMessage = error.localizedDescription
@@ -255,6 +321,7 @@ public final class AppViewModel: ObservableObject {
         let manualItem = RedactionEntityItem(
             text: displayText,
             category: "manual_redaction",
+            dataDomain: "PII",
             statuteCode: manualStatute.rawValue,
             confidence: 1.0,
             pageNumber: page,
@@ -295,7 +362,7 @@ public final class AppViewModel: ObservableObject {
         isBusy = true
         errorMessage = nil
         workerState = .spawning
-        statusMessage = "Executing PikePDF content stream surgery & generating FOIA certificate..."
+        statusMessage = "Executing PikePDF content stream surgery & issuing compliance certificate..."
 
         let outDir = WorkspaceResolver.resolveOutputDirectory(
             for: pdfURL,
@@ -312,6 +379,7 @@ public final class AppViewModel: ObservableObject {
                 plan: plan,
                 outputURL: outputURL,
                 certificateURL: certURL,
+                certificateConfig: certificateConfig,
                 repair: autoRepairImperfect
             )
             lastResult = result
@@ -362,6 +430,8 @@ public final class AppViewModel: ObservableObject {
                 certificateURL: certURL,
                 profile: releaseProfile,
                 coordinatePolicy: coordinatePolicy,
+                enabledDomains: enabledDomainStrings,
+                certificateConfig: certificateConfig,
                 repair: autoRepairImperfect,
                 visionSpans: extractedSpans
             )

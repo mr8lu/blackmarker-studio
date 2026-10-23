@@ -1,238 +1,291 @@
-"""Virginia FOIA Redaction Certificate and Audit Report Generator powered by Polars & ReportLab."""
+"""Multi-Sector Compliance & Redaction Certificate generator powered by Polars and ReportLab."""
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union
 import polars as pl
-from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
-from redact_gov.core.models import RedactionEntity
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+from redact_gov.core.models import (
+    AuditRecord,
+    CertificateConfig,
+    RedactionEntity,
+    RedactionPlan,
+    get_certificate_preset,
+)
 from redact_gov.core.statutes import get_statute
 
 
 class CertificateGenerator:
-    """Generates official Virginia FOIA compliance certificates using Polars for high-speed indexing."""
+    """Generates customizable compliance & redaction audit certificates and Polars ledger summaries."""
 
-    def generate_certificate(
-        self,
-        document_name: str,
-        entities: List[RedactionEntity],
-        output_path: Path,
-        reviewer_name: str = "Authorized FOIA Officer",
-        agency_name: str = "Commonwealth of Virginia - Public Records Office",
-    ) -> Path:
-        """Generate a formal Virginia FOIA Redaction Certificate PDF."""
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Convert entities into a Polars DataFrame for fast aggregation
-        data = []
-        for e in entities:
-            if not e.approved:
+    def build_polars_dataframe(self, plan: RedactionPlan) -> pl.DataFrame:
+        """Convert approved redaction entities into a Polars DataFrame for high-speed aggregation."""
+        records = []
+        for entity in plan.entities:
+            if not entity.approved:
                 continue
-            statute = get_statute(e.statute_code)
-            citation = statute.legal_citation if statute else e.statute_code
-            title = statute.short_title if statute else e.category
-            data.append({
-                "id": e.id,
-                "text": e.text,
-                "category": e.category,
-                "statute_code": e.statute_code,
-                "legal_citation": citation,
-                "statute_title": title,
-                "page": e.page_number,
-                "tier": e.tier,
-                "confidence": e.confidence,
-            })
-
-        if data:
-            df = pl.DataFrame(data)
-            # Polars aggregation by statute
-            statute_summary = (
-                df.group_by(["statute_code", "legal_citation", "statute_title"])
-                .agg(pl.len().alias("count"))
-                .sort("count", descending=True)
+            statute = get_statute(entity.statute_code)
+            records.append(
+                {
+                    "id": entity.id,
+                    "page": entity.page_number,
+                    "category": entity.category,
+                    "data_domain": entity.data_domain or (statute.data_domain if statute else "PII"),
+                    "statute_code": entity.statute_code,
+                    "legal_citation": statute.legal_citation if statute else entity.statute_code,
+                    "short_title": statute.short_title if statute else "Statutory / Regulatory Exemption",
+                    "tier": entity.tier,
+                    "confidence": round(entity.confidence, 3),
+                    "instance_count": max(1, len(entity.bounding_boxes)),
+                }
             )
-        else:
-            df = pl.DataFrame(schema={
-                "id": pl.Utf8, "text": pl.Utf8, "category": pl.Utf8,
-                "statute_code": pl.Utf8, "legal_citation": pl.Utf8,
-                "statute_title": pl.Utf8, "page": pl.Int64,
-                "tier": pl.Utf8, "confidence": pl.Float64,
-            })
-            statute_summary = pl.DataFrame()
 
-        # Build ReportLab PDF
+        if not records:
+            return pl.DataFrame(
+                schema={
+                    "id": pl.Utf8,
+                    "page": pl.Int64,
+                    "category": pl.Utf8,
+                    "data_domain": pl.Utf8,
+                    "statute_code": pl.Utf8,
+                    "legal_citation": pl.Utf8,
+                    "short_title": pl.Utf8,
+                    "tier": pl.Utf8,
+                    "confidence": pl.Float64,
+                    "instance_count": pl.Int64,
+                }
+            )
+
+        return pl.DataFrame(records)
+
+    def summarize_by_statute(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Aggregate redaction counts grouped by statutory/regulatory citation and page numbers."""
+        if df.is_empty():
+            return pl.DataFrame(
+                schema={
+                    "legal_citation": pl.Utf8,
+                    "short_title": pl.Utf8,
+                    "total_redactions": pl.Int64,
+                    "pages_affected": pl.Utf8,
+                }
+            )
+
+        summary = (
+            df.group_by(["legal_citation", "short_title"])
+            .agg(
+                [
+                    pl.col("instance_count").sum().alias("total_redactions"),
+                    pl.col("page").unique().sort().cast(pl.Utf8).str.join(", ").alias("pages_affected"),
+                ]
+            )
+            .sort("legal_citation")
+        )
+        return summary
+
+    def resolve_certificate_config(
+        self,
+        plan: RedactionPlan,
+        agency_name: Optional[str] = None,
+        reviewer_name: Optional[str] = None,
+        certificate_config: Optional[Union[CertificateConfig, Dict[str, Any]]] = None,
+    ) -> CertificateConfig:
+        """Resolve the effective CertificateConfig from preset, plan profile, and explicit overrides."""
+        if isinstance(certificate_config, CertificateConfig):
+            cfg = certificate_config.model_copy()
+        elif isinstance(certificate_config, dict):
+            preset_base = get_certificate_preset(
+                certificate_config.get("template_preset") or getattr(plan, "profile", None)
+            )
+            merged = preset_base.model_dump()
+            for k, v in certificate_config.items():
+                if v is not None and str(v).strip() != "" and k in merged:
+                    merged[k] = v
+            cfg = CertificateConfig(**merged)
+        else:
+            cfg = get_certificate_preset(getattr(plan, "profile", None))
+
+        if agency_name and agency_name.strip():
+            cfg.agency_name = agency_name.strip()
+        if reviewer_name and reviewer_name.strip():
+            cfg.reviewer_name = reviewer_name.strip()
+        return cfg
+
+    def generate_pdf_certificate(
+        self,
+        plan: RedactionPlan,
+        output_path: Path,
+        agency_name: Optional[str] = None,
+        reviewer_name: Optional[str] = None,
+        certificate_config: Optional[Union[CertificateConfig, Dict[str, Any]]] = None,
+    ) -> Path:
+        """Render a formal PDF Compliance & Redaction Certificate using customizable template settings."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg = self.resolve_certificate_config(
+            plan=plan,
+            agency_name=agency_name,
+            reviewer_name=reviewer_name,
+            certificate_config=certificate_config,
+        )
+
+        df = self.build_polars_dataframe(plan)
+        summary_df = self.summarize_by_statute(df)
+
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=letter,
-            rightMargin=40,
-            leftMargin=40,
-            topMargin=40,
-            bottomMargin=40,
+            rightMargin=0.75 * inch,
+            leftMargin=0.75 * inch,
+            topMargin=0.75 * inch,
+            bottomMargin=0.75 * inch,
         )
 
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             "CertTitle",
             parent=styles["Heading1"],
-            fontSize=18,
-            leading=22,
-            textColor=colors.HexColor("#1e3a8a"),
-            alignment=1,  # Center
+            fontSize=15,
+            leading=19,
+            spaceAfter=6,
+            textColor=colors.HexColor("#1B365D"),
         )
         subtitle_style = ParagraphStyle(
-            "CertSubtitle",
+            "CertSub",
             parent=styles["Normal"],
-            fontSize=11,
-            leading=15,
-            textColor=colors.HexColor("#475569"),
-            alignment=1,
+            fontSize=9.5,
+            leading=13,
+            textColor=colors.HexColor("#4A5568"),
         )
-        section_heading = ParagraphStyle(
-            "CertSection",
-            parent=styles["Heading2"],
-            fontSize=13,
-            leading=17,
-            textColor=colors.HexColor("#0f172a"),
-            spaceBefore=12,
-            spaceAfter=6,
-        )
-        body_style = ParagraphStyle(
-            "CertBody",
-            parent=styles["Normal"],
-            fontSize=9,
-            leading=12,
-            textColor=colors.HexColor("#334155"),
-        )
-        table_header_style = ParagraphStyle(
-            "CertTableHeader",
-            parent=styles["Normal"],
-            fontSize=9,
-            leading=11,
-            textColor=colors.white,
-            fontName="Helvetica-Bold",
-        )
+        body_style = styles["BodyText"]
 
-        story = []
+        elements = []
 
-        # Header
-        story.append(Paragraph("COMMONWEALTH OF VIRGINIA", subtitle_style))
-        story.append(Paragraph("VIRGINIA FREEDOM OF INFORMATION ACT (VFOIA)", subtitle_style))
-        story.append(Paragraph("STATUTORY REDACTION & COMPLIANCE CERTIFICATE", title_style))
-        story.append(Spacer(1, 8))
-        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1e3a8a"), spaceAfter=12))
+        # Customizable Header Banner
+        elements.append(Paragraph(cfg.jurisdiction_banner, title_style))
+        elements.append(Paragraph(cfg.framework_subtitle, subtitle_style))
+        elements.append(Spacer(1, 0.18 * inch))
+        elements.append(Paragraph(f"<b>{cfg.certificate_title}</b>", styles["Heading2"]))
+        elements.append(Spacer(1, 0.1 * inch))
 
-        # Metadata Block
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        domains_str = ", ".join(getattr(plan, "enabled_domains", None) or ["PII", "PHI", "PPI"])
+        profile_str = (getattr(plan, "profile", None) or "public_foia").upper().replace("_", " ")
+
         meta_data = [
-            [Paragraph("<b>Target Document:</b>", body_style), Paragraph(document_name, body_style)],
-            [Paragraph("<b>Date of Audit:</b>", body_style), Paragraph(now_str, body_style)],
-            [Paragraph("<b>Certifying Agency:</b>", body_style), Paragraph(agency_name, body_style)],
-            [Paragraph("<b>FOIA Compliance Officer:</b>", body_style), Paragraph(reviewer_name, body_style)],
-            [Paragraph("<b>Total Redacted Items:</b>", body_style), Paragraph(str(len(data)), body_style)],
+            ["Document Name:", plan.document_name],
+            ["Total Pages:", str(plan.total_pages)],
+            ["Certifying Organization:", cfg.agency_name],
+            [cfg.reviewer_role_label, cfg.reviewer_name],
+            ["Compliance Profile & Domains:", f"{profile_str} ({domains_str})"],
+            ["Timestamp (UTC):", now_str],
+            ["Execution Mode:", "100% Air-Gapped On-Device (AI Blackmarker)"],
         ]
-        meta_table = Table(meta_data, colWidths=[150, 380])
-        meta_table.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ]))
-        story.append(meta_table)
-        story.append(Spacer(1, 14))
 
-        # Section 1: Statutory Summary Table
-        story.append(Paragraph("1. Statutory Withholding Summary", section_heading))
-        summary_rows = [[
-            Paragraph("Virginia Statute", table_header_style),
-            Paragraph("Statutory Exemption Category", table_header_style),
-            Paragraph("Redacted Items", table_header_style),
-        ]]
-
-        if not statute_summary.is_empty():
-            for row in statute_summary.iter_rows(named=True):
-                summary_rows.append([
-                    Paragraph(row["legal_citation"], body_style),
-                    Paragraph(row["statute_title"], body_style),
-                    Paragraph(str(row["count"]), body_style),
-                ])
-        else:
-            summary_rows.append([
-                Paragraph("None", body_style),
-                Paragraph("No exemptions applied", body_style),
-                Paragraph("0", body_style),
-            ])
-
-        sum_table = Table(summary_rows, colWidths=[180, 270, 80])
-        sum_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
-            ("ALIGN", (2, 0), (2, -1), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]))
-        story.append(sum_table)
-        story.append(Spacer(1, 14))
-
-        # Section 2: Detailed Audit Log
-        story.append(Paragraph("2. Itemized Redaction Log", section_heading))
-        detail_rows = [[
-            Paragraph("Item ID", table_header_style),
-            Paragraph("Page", table_header_style),
-            Paragraph("Legal Citation", table_header_style),
-            Paragraph("Category", table_header_style),
-            Paragraph("Withheld Token Pattern", table_header_style),
-        ]]
-
-        if not df.is_empty():
-            for row in df.iter_rows(named=True):
-                # Mask text for security in certificate (e.g. 123-**-6789)
-                raw_text = row["text"]
-                if len(raw_text) > 4:
-                    masked = raw_text[:2] + ("*" * (len(raw_text) - 4)) + raw_text[-2:]
-                else:
-                    masked = "***"
-
-                detail_rows.append([
-                    Paragraph(str(row["id"]), body_style),
-                    Paragraph(str(row["page"]), body_style),
-                    Paragraph(str(row["legal_citation"]), body_style),
-                    Paragraph(str(row["category"]), body_style),
-                    Paragraph(masked, body_style),
-                ])
-
-        det_table = Table(detail_rows, colWidths=[70, 45, 155, 120, 140])
-        det_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
-            ("ALIGN", (1, 0), (1, -1), "CENTER"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        story.append(det_table)
-        story.append(Spacer(1, 20))
-
-        # Certification Signature Block
-        story.append(Paragraph("3. Official Attestation", section_heading))
-        attestation = (
-            "I hereby certify under penalty of law that the redactions documented above have been executed "
-            "in strict compliance with the Virginia Freedom of Information Act (Va. Code § 2.2-3700 et seq.) "
-            "and all applicable juvenile, victim protection, and law-enforcement confidentiality statutes. "
-            "All underlying data layers have been irreversibly purged using air-gapped on-device sanitization."
+        meta_table = Table(meta_data, colWidths=[2.3 * inch, 4.7 * inch])
+        meta_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#2D3748")),
+                ]
+            )
         )
-        story.append(Paragraph(attestation, body_style))
-        story.append(Spacer(1, 35))
+        elements.append(meta_table)
+        elements.append(Spacer(1, 0.25 * inch))
 
-        sig_data = [
-            [
-                Paragraph("__________________________________________<br/>Signature of Certifying Official", body_style),
-                Paragraph("____________________<br/>Date", body_style),
-            ]
-        ]
-        sig_table = Table(sig_data, colWidths=[360, 170])
-        story.append(sig_table)
+        # Exemption Summary Table
+        elements.append(Paragraph("<b>1. Regulatory & Statutory Redaction Summary</b>", styles["Heading3"]))
+        elements.append(Spacer(1, 0.08 * inch))
 
-        doc.build(story)
+        if summary_df.is_empty():
+            elements.append(
+                Paragraph("No redactions were required or applied to this document.", body_style)
+            )
+        else:
+            table_rows = [[cfg.citation_column_header, "Domain", "Exemption / Control Category", "Redactions", "Pages"]]
+            for row in summary_df.iter_rows(named=True):
+                table_rows.append(
+                    [
+                        row["legal_citation"],
+                        row.get("data_domain", "PII"),
+                        row["short_title"],
+                        str(row["total_redactions"]),
+                        row["pages_affected"],
+                    ]
+                )
+
+            summary_table = Table(
+                table_rows, colWidths=[2.0 * inch, 0.7 * inch, 2.3 * inch, 0.9 * inch, 1.1 * inch]
+            )
+            summary_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B365D")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 9),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F7FAFC")),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 8),
+                        ("ALIGN", (1, 1), (1, -1), "CENTER"),
+                        ("ALIGN", (3, 1), (3, -1), "CENTER"),
+                    ]
+                )
+            )
+            elements.append(summary_table)
+
+        elements.append(Spacer(1, 0.3 * inch))
+        elements.append(Paragraph("<b>2. Legal & Compliance Attestation</b>", styles["Heading3"]))
+        elements.append(
+            Paragraph(
+                cfg.attestation_statement,
+                body_style,
+            )
+        )
+
+        doc.build(elements)
         return output_path
+
+    def generate_certificate(
+        self,
+        document_name: str,
+        entities: List[RedactionEntity],
+        output_path: Path,
+        reviewer_name: Optional[str] = None,
+        agency_name: Optional[str] = None,
+        total_pages: int = 1,
+        profile: str = "public_foia",
+        enabled_domains: Optional[List[str]] = None,
+        certificate_config: Optional[Union[CertificateConfig, Dict[str, Any]]] = None,
+    ) -> Path:
+        """Generate a customizable Compliance Redaction Certificate from document_name and entities list."""
+        max_page = max([total_pages] + [e.page_number for e in entities]) if entities else total_pages
+        domains = enabled_domains or sorted({getattr(e, "data_domain", "PII") or "PII" for e in entities}) or ["PII", "PHI", "PPI"]
+        plan = RedactionPlan(
+            document_name=document_name,
+            total_pages=max_page,
+            entities=entities,
+            profile=profile,
+            enabled_domains=domains,
+        )
+        return self.generate_pdf_certificate(
+            plan=plan,
+            output_path=output_path,
+            agency_name=agency_name,
+            reviewer_name=reviewer_name,
+            certificate_config=certificate_config,
+        )

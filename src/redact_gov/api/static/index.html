@@ -3,24 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Blackmarker - Virginia FOIA Redaction Studio</title>
+    <title>AI Blackmarker - Multi-Sector Sovereign Redaction Studio</title>
     <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         :root {
-            --bg-dark: #0f1116;
-            --panel-bg: #171a21;
-            --border-color: #2c3240;
-            --accent: #0ea5e9;
+            --bg-dark: #0b0d12;
+            --panel-bg: #131720;
+            --card-bg: #1a202c;
+            --border-color: #2d3748;
+            --accent: #38bdf8;
             --accent-hover: #0284c7;
-            --success: #16a34a;
-            --danger: #dc2626;
+            --success: #22c55e;
+            --danger: #ef4444;
             --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
+            --text-secondary: #cbd5e1;
+            --domain-pii: #38bdf8;
+            --domain-phi: #a855f7;
+            --domain-ppi: #eab308;
         }
         * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg-dark);
             color: var(--text-primary);
             margin: 0;
@@ -30,7 +34,7 @@
             overflow: hidden;
         }
         .sidebar {
-            width: 370px;
+            width: 390px;
             background: var(--panel-bg);
             border-right: 1px solid var(--border-color);
             display: flex;
@@ -45,8 +49,8 @@
             gap: 10px;
         }
         header img {
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border-radius: 7px;
         }
         header h2 {
@@ -56,13 +60,57 @@
             letter-spacing: -0.01em;
         }
         header span {
-            font-size: 0.75rem;
+            font-size: 0.74rem;
             color: var(--text-secondary);
             display: block;
         }
-        .upload-section, .doc-info, .manual-bar, .actions {
-            padding: 12px 16px;
+        .upload-section, .scope-section, .doc-info, .actions {
+            padding: 11px 16px;
             border-bottom: 1px solid var(--border-color);
+        }
+        .section-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .domain-pills {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .domain-pill {
+            flex: 1;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #0f131a;
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .domain-pill.active-pii {
+            border-color: var(--domain-pii);
+            background: rgba(56, 189, 248, 0.18);
+            color: #ffffff;
+        }
+        .domain-pill.active-phi {
+            border-color: var(--domain-phi);
+            background: rgba(168, 85, 247, 0.22);
+            color: #ffffff;
+        }
+        .domain-pill.active-ppi {
+            border-color: var(--domain-ppi);
+            background: rgba(234, 179, 8, 0.22);
+            color: #ffffff;
         }
         .entity-list {
             flex: 1;
@@ -70,7 +118,7 @@
             padding: 12px 16px;
         }
         .entity-card {
-            background: #1e232d;
+            background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 10px 12px;
@@ -97,13 +145,14 @@
             border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-size: 0.85rem;
+            gap: 10px;
+            font-size: 0.84rem;
+            flex-wrap: wrap;
         }
         .pdf-viewer-container {
             flex: 1;
             overflow: auto;
-            background: #0b0d11;
+            background: #090b0f;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -113,7 +162,7 @@
         .pdf-page-wrapper {
             position: relative;
             background: white;
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
             user-select: none;
         }
         .pdf-page-wrapper.draw-mode {
@@ -128,11 +177,11 @@
         }
         .bbox.approved {
             border-color: #ef4444;
-            background-color: rgba(15, 23, 42, 0.55);
+            background-color: rgba(15, 23, 42, 0.58);
         }
         .bbox.manual {
             border-color: var(--accent);
-            background-color: rgba(9, 13, 22, 0.65);
+            background-color: rgba(9, 13, 22, 0.68);
         }
         .bbox.rejected {
             border-color: #94a3b8;
@@ -142,41 +191,48 @@
         .marquee-box {
             position: absolute;
             border: 2px dashed var(--accent);
-            background-color: rgba(14, 165, 233, 0.28);
+            background-color: rgba(56, 189, 248, 0.28);
             pointer-events: none;
         }
-        button, select {
-            padding: 8px 12px;
-            border: 1px solid transparent;
+        button, select, input, textarea {
+            padding: 7px 11px;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
-            cursor: pointer;
             font-weight: 600;
-            font-size: 0.84rem;
-            color: white;
-            background: #283040;
+            font-size: 0.82rem;
+            color: var(--text-primary);
+            background: #1e2636;
         }
-        select {
-            background: #11141b;
-            border-color: var(--border-color);
+        button { cursor: pointer; }
+        button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
         }
-        .btn-primary { background: var(--accent); }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-success { background: var(--success); }
-        .btn-danger { background: var(--danger); }
-        .btn-secondary { background: #334155; }
+        select, input, textarea {
+            background: #0f131c;
+        }
+        .btn-primary { background: #0284c7; border-color: #38bdf8; color: #ffffff; }
+        .btn-primary:hover { background: #0369a1; }
+        .btn-success { background: #15803d; border-color: #22c55e; color: #ffffff; }
+        .btn-danger { background: #b91c1c; border-color: #ef4444; color: #ffffff; }
+        .btn-secondary { background: #283246; border-color: #475569; color: #f8fafc; }
         .btn-toggle-active {
-            background: var(--accent);
-            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.35);
+            background: #0284c7;
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
         }
         .badge {
             display: inline-block;
             padding: 2px 7px;
             border-radius: 999px;
-            font-size: 0.72rem;
+            font-size: 0.70rem;
             font-weight: 700;
             background: #283040;
-            color: #e2e8f0;
+            color: #f1f5f9;
         }
+        .badge-pii { background: rgba(56, 189, 248, 0.22); border: 1px solid var(--domain-pii); }
+        .badge-phi { background: rgba(168, 85, 247, 0.25); border: 1px solid var(--domain-phi); }
+        .badge-ppi { background: rgba(234, 179, 8, 0.25); border: 1px solid var(--domain-ppi); }
         .loader {
             display: none;
             border: 3px solid #283040;
@@ -186,6 +242,39 @@
             height: 18px;
             animation: spin 0.9s linear infinite;
         }
+        /* Modal for Certificate Template Customizer */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 7, 11, 0.78);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            width: 560px;
+            max-width: 94vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+        }
+        .form-row {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .form-row label {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -193,54 +282,154 @@
     <div class="sidebar">
         <header>
             <img src="/static/icon.png" alt="AI Blackmarker">
-            <div>
+            <div style="flex:1">
                 <h2>AI Blackmarker</h2>
-                <span>Va. Code § 2.2-3700 • Air-Gapped Studio</span>
+                <span>FOIA • HIPAA • PCI DSS • GLBA • FRCP 5.2</span>
             </div>
+            <button class="btn-secondary" style="padding:5px 8px; font-size:0.74rem;" onclick="openCertModal()" title="Customize Certificate Template">
+                Certificate...
+            </button>
         </header>
+
         <div class="upload-section">
             <input type="file" id="pdfUpload" accept="application/pdf" style="display:none">
             <button class="btn-primary" style="width:100%" onclick="document.getElementById('pdfUpload').click()">Open PDF Document...</button>
             <div id="uploadLoader" class="loader" style="margin: 10px auto;"></div>
         </div>
-        <div class="doc-info" id="docInfo" style="display:none">
-            <div style="display:flex; justify-content:space-between; font-size:0.84rem;">
-                <span>Docket ID: <strong id="docId"></strong></span>
-                <span>Pages: <strong id="docPages"></strong></span>
-                <span>Redactions: <strong id="docEntities"></strong></span>
+
+        <div class="scope-section">
+            <div class="section-label">
+                <span>Compliance Profile</span>
+                <span id="replanStatus" style="font-size:0.68rem; color:var(--accent);"></span>
+            </div>
+            <select id="profileSelect" style="width:100%" onchange="onProfileChange()">
+                <option value="public_foia">Government FOIA / Open Records (PII + PHI + PPI)</option>
+                <option value="strict_privacy">Strict Maximum Privacy (All Identifiers)</option>
+                <option value="hipaa">Healthcare HIPAA Safe Harbor (PHI + Identity)</option>
+                <option value="pci_dss">Payment Card PCI DSS v4.0 (PPI Cardholder)</option>
+                <option value="glba">Banking GLBA / FinCEN Financial (PPI + PII)</option>
+                <option value="frcp_5_2">Judicial Filing Fed. R. Civ. P. 5.2 (PII + PPI)</option>
+                <option value="aicpa_soc2">Enterprise AICPA SOC 2 Confidentiality</option>
+                <option value="environmental_review">Environmental / Critical Habitat Review</option>
+                <option value="law_enforcement">Law Enforcement & Victim Protection</option>
+            </select>
+
+            <div class="section-label" style="margin-top:10px;">
+                <span>A-La-Carte Redaction Domains</span>
+            </div>
+            <div class="domain-pills">
+                <button type="button" id="pillPII" class="domain-pill active-pii" onclick="toggleDomain('PII')" title="Personally Identifiable Information (SSN, DL, DOB, Phone, Email, Passport, Juvenile/Victim)">
+                    PII • Identity
+                </button>
+                <button type="button" id="pillPHI" class="domain-pill active-phi" onclick="toggleDomain('PHI')" title="Protected Health Information (MRN, NPI, ICD-10, Medicare HICN/MBI, Health Plan)">
+                    PHI • Health
+                </button>
+                <button type="button" id="pillPPI" class="domain-pill active-ppi" onclick="toggleDomain('PPI')" title="Personal Payment & Financial Information (Credit Cards, ABA Routing, IBAN, Bank Accounts)">
+                    PPI • Finance
+                </button>
             </div>
         </div>
+
+        <div class="doc-info" id="docInfo" style="display:none">
+            <div style="display:flex; justify-content:space-between; font-size:0.82rem;">
+                <span>ID: <strong id="docId"></strong></span>
+                <span>Pages: <strong id="docPages"></strong></span>
+                <span>Targets: <strong id="docEntities"></strong></span>
+            </div>
+        </div>
+
         <div class="actions" id="bulkActions" style="display:none; gap:6px;">
             <button class="btn-success" onclick="toggleAll(true)" style="flex:1">Approve All</button>
             <button class="btn-secondary" onclick="toggleAll(false)" style="flex:1">Clear All</button>
         </div>
+
         <div class="entity-list" id="entityList"></div>
+
         <div class="actions" id="executeActions" style="display:none; flex-direction:column; gap:8px">
             <button class="btn-success" onclick="executeRedaction()" id="btnExecute">Sanitize & Certify PDF</button>
             <div id="execLoader" class="loader" style="margin: 0 auto;"></div>
             <a id="downloadSanitized" class="btn-primary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Sanitized PDF</a>
-            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download FOIA Certificate</a>
+            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Compliance Certificate</a>
         </div>
     </div>
 
     <div class="main-content">
         <div class="canvas-toolbar">
             <button id="btnManualDraw" onclick="toggleManualDrawMode()">Manual Blackmarker: OFF</button>
-            <label for="manualStatute" style="color:var(--text-secondary)">Statute:</label>
+            <label for="manualStatute" style="color:var(--text-secondary)">Citation:</label>
             <select id="manualStatute">
-                <option value="Va. Code § 2.2-3705.1(1)">§ 2.2-3705.1(1) • Personnel & Privacy</option>
-                <option value="Va. Code § 2.2-3808.1">§ 2.2-3808.1 • SSN & Account IDs</option>
-                <option value="Va. Code § 2.2-3706">§ 2.2-3706 • Law Enforcement & Victims</option>
-                <option value="Va. Code § 2.2-3705.7(2)">§ 2.2-3705.7(2) • Juvenile Identifiers</option>
-                <option value="Va. Code § 2.2-3705.3">§ 2.2-3705.3 • Administrative Investigation</option>
-                <option value="Va. Code § 2.2-3705.7(26)">§ 2.2-3705.7(26) • Critical Habitat / Species</option>
+                <optgroup label="Cross-Sector & Federal">
+                    <option value="5 U.S.C. § 552(b)(6)">5 U.S.C. § 552(b)(6) • Federal FOIA Privacy</option>
+                    <option value="45 CFR § 164.514(b)">45 CFR § 164.514(b) • HIPAA Safe Harbor PHI</option>
+                    <option value="PCI DSS v4.0 Req. 3.4">PCI DSS v4.0 Req. 3.4 • Cardholder PAN / Track</option>
+                    <option value="16 CFR Part 314 (GLBA)">16 CFR Part 314 (GLBA) • Nonpublic Financial Info</option>
+                    <option value="Fed. R. Civ. P. 5.2(a)">Fed. R. Civ. P. 5.2(a) • Judicial Privacy Filing</option>
+                    <option value="AICPA TSC CC6.1 / P4.2">AICPA TSC CC6.1 / P4.2 • SOC 2 Confidentiality</option>
+                </optgroup>
+                <optgroup label="State & Local Government (Va. Code)">
+                    <option value="Va. Code § 2.2-3705.1(1)">§ 2.2-3705.1(1) • Personnel & Privacy</option>
+                    <option value="Va. Code § 2.2-3808.1">§ 2.2-3808.1 • SSN & Account IDs</option>
+                    <option value="Va. Code § 2.2-3706">§ 2.2-3706 • Law Enforcement & Victims</option>
+                    <option value="Va. Code § 2.2-3705.7(2)">§ 2.2-3705.7(2) • Juvenile Identifiers</option>
+                    <option value="Va. Code § 2.2-3705.5">§ 2.2-3705.5 • Health & Medical Records</option>
+                    <option value="Va. Code § 2.2-3705.7(26)">§ 2.2-3705.7(26) • Critical Habitat / Species</option>
+                </optgroup>
             </select>
             <span style="color:var(--text-secondary); margin-left:auto; font-size:0.78rem;">
-                Tip: Enable Manual Blackmarker (or hold Shift + Drag) on any page to draw a custom redaction box.
+                Enable Manual Blackmarker (or Shift + Drag) on any page to draw a custom redaction box.
             </span>
         </div>
         <div class="pdf-viewer-container" id="pdfViewer">
-            <h3 style="color:var(--text-secondary); margin-top:18%; font-weight:500;">Open a PDF document to review or draw manual Blackmarker redactions</h3>
+            <h3 style="color:var(--text-secondary); margin-top:18%; font-weight:500;">Open a PDF document to review PII, PHI, or PPI redactions</h3>
+        </div>
+    </div>
+
+    <!-- Customizable Certificate Template Modal -->
+    <div class="modal-backdrop" id="certModal">
+        <div class="modal-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h3 style="margin:0; font-size:1.05rem;">Customize Redaction Certificate Template</h3>
+                <button class="btn-secondary" onclick="closeCertModal()">✕</button>
+            </div>
+            <div class="form-row">
+                <label for="certPresetSelect">Sector Template Preset</label>
+                <select id="certPresetSelect" onchange="applyCertPreset(this.value)">
+                    <option value="generic_compliance">Generic Multi-Sector Compliance (FOIA / HIPAA / PCI / SOC 2)</option>
+                    <option value="public_foia">Government FOIA & Public Records</option>
+                    <option value="hipaa_healthcare">Healthcare HIPAA Safe Harbor (45 CFR § 164.514)</option>
+                    <option value="banking_glba_pci">Banking & Payment Security (GLBA / PCI DSS v4.0)</option>
+                    <option value="judicial_frcp">Judicial Privacy Filing (Fed. R. Civ. P. 5.2)</option>
+                    <option value="enterprise_aicpa">Enterprise SOC 2 / AICPA Confidentiality</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="certBanner">Header Banner (Jurisdiction / Sector Header)</label>
+                <input type="text" id="certBanner" placeholder="e.g. DATA PRIVACY & SECURITY COMPLIANCE">
+            </div>
+            <div class="form-row">
+                <label for="certSubtitle">Regulatory Framework Subtitle</label>
+                <input type="text" id="certSubtitle" placeholder="e.g. Multi-Sector Information Governance">
+            </div>
+            <div class="form-row">
+                <label for="certTitle">Certificate Title</label>
+                <input type="text" id="certTitle" placeholder="e.g. CERTIFICATE OF REDACTION & SANITIZATION">
+            </div>
+            <div class="form-row">
+                <label for="certAgency">Certifying Organization / Agency / Hospital / Bank</label>
+                <input type="text" id="certAgency" placeholder="e.g. Information Security & Privacy Office">
+            </div>
+            <div class="form-row">
+                <label for="certReviewer">Certifying Officer / Reviewer</label>
+                <input type="text" id="certReviewer" placeholder="e.g. AI Blackmarker Sovereign Engine">
+            </div>
+            <div class="form-row">
+                <label for="certAttestation">Formal Attestation Statement</label>
+                <textarea id="certAttestation" rows="4"></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                <button class="btn-secondary" onclick="closeCertModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveCertConfig()">Save Certificate Template</button>
+            </div>
         </div>
     </div>
 
@@ -252,6 +441,140 @@
         let currentFileUrl = null;
         let pdfDoc = null;
         let manualDrawMode = false;
+        let activeDomains = new Set(['PII', 'PHI', 'PPI']);
+        let certPresets = {};
+        let activeCertConfig = null;
+
+        const PROFILE_DEFAULT_DOMAINS = {
+            public_foia: ['PII', 'PHI', 'PPI'],
+            strict_privacy: ['PII', 'PHI', 'PPI'],
+            hipaa: ['PII', 'PHI'],
+            pci_dss: ['PPI'],
+            glba: ['PII', 'PPI'],
+            frcp_5_2: ['PII', 'PPI'],
+            aicpa_soc2: ['PII', 'PPI'],
+            environmental_review: ['PII'],
+            law_enforcement: ['PII', 'PHI']
+        };
+
+        async function loadCertPresets() {
+            try {
+                const res = await fetch('/api/certificate/presets');
+                if (res.ok) {
+                    const data = await res.json();
+                    certPresets = data.presets || {};
+                    activeCertConfig = data.active || null;
+                    if (activeCertConfig) populateCertModal(activeCertConfig);
+                }
+            } catch (e) {
+                console.warn('Could not load certificate presets:', e);
+            }
+        }
+        loadCertPresets();
+
+        function populateCertModal(cfg) {
+            document.getElementById('certPresetSelect').value = cfg.template_id || 'generic_compliance';
+            document.getElementById('certBanner').value = cfg.jurisdiction_banner || '';
+            document.getElementById('certSubtitle').value = cfg.framework_subtitle || '';
+            document.getElementById('certTitle').value = cfg.certificate_title || '';
+            document.getElementById('certAgency').value = cfg.agency_name || '';
+            document.getElementById('certReviewer').value = cfg.reviewer_name || '';
+            document.getElementById('certAttestation').value = cfg.attestation_statement || '';
+        }
+
+        function applyCertPreset(presetKey) {
+            const p = certPresets[presetKey];
+            if (p) populateCertModal(p);
+        }
+
+        function openCertModal() {
+            document.getElementById('certModal').classList.add('open');
+        }
+
+        function closeCertModal() {
+            document.getElementById('certModal').classList.remove('open');
+        }
+
+        async function saveCertConfig() {
+            const cfg = {
+                template_id: document.getElementById('certPresetSelect').value,
+                jurisdiction_banner: document.getElementById('certBanner').value.trim(),
+                framework_subtitle: document.getElementById('certSubtitle').value.trim(),
+                certificate_title: document.getElementById('certTitle').value.trim(),
+                agency_name: document.getElementById('certAgency').value.trim(),
+                reviewer_name: document.getElementById('certReviewer').value.trim(),
+                attestation_statement: document.getElementById('certAttestation').value.trim(),
+                include_sha256_signature: true
+            };
+            activeCertConfig = cfg;
+            try {
+                await fetch('/api/certificate/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg)
+                });
+            } catch (e) {
+                console.error(e);
+            }
+            closeCertModal();
+        }
+
+        function renderDomainPills() {
+            ['PII', 'PHI', 'PPI'].forEach(dom => {
+                const el = document.getElementById('pill' + dom);
+                const cls = 'active-' + dom.toLowerCase();
+                if (activeDomains.has(dom)) {
+                    el.classList.add(cls);
+                } else {
+                    el.classList.remove(cls);
+                }
+            });
+        }
+
+        async function toggleDomain(dom) {
+            if (activeDomains.has(dom) && activeDomains.size > 1) {
+                activeDomains.delete(dom);
+            } else {
+                activeDomains.add(dom);
+            }
+            renderDomainPills();
+            await triggerReplanIfLoaded();
+        }
+
+        async function onProfileChange() {
+            const prof = document.getElementById('profileSelect').value;
+            const defaults = PROFILE_DEFAULT_DOMAINS[prof] || ['PII', 'PHI', 'PPI'];
+            activeDomains = new Set(defaults);
+            renderDomainPills();
+            await triggerReplanIfLoaded();
+        }
+
+        async function triggerReplanIfLoaded() {
+            if (!currentDocId) return;
+            const statusEl = document.getElementById('replanStatus');
+            statusEl.innerText = 'Scanning...';
+            try {
+                const res = await fetch(`/api/documents/${currentDocId}/replan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        profile: document.getElementById('profileSelect').value,
+                        enabled_domains: Array.from(activeDomains)
+                    })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentPlan = data.plan;
+                    document.getElementById('docEntities').innerText = currentPlan.entities.length;
+                    renderEntityList();
+                    drawBboxes();
+                }
+            } catch (err) {
+                console.error('Replan failed:', err);
+            } finally {
+                statusEl.innerText = '';
+            }
+        }
 
         function toggleManualDrawMode() {
             manualDrawMode = !manualDrawMode;
@@ -271,6 +594,8 @@
             document.getElementById('uploadLoader').style.display = 'block';
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('profile', document.getElementById('profileSelect').value);
+            formData.append('domains', Array.from(activeDomains).join(','));
 
             try {
                 const response = await fetch('/api/documents/upload', {
@@ -406,7 +731,6 @@
                 const scale = parseFloat(wrapper.dataset.scale);
                 const pdfHeight = parseFloat(wrapper.dataset.pdfHeight);
 
-                // Convert top-left browser pixels to bottom-left PDF points
                 const x0 = +(leftPx / scale).toFixed(2);
                 const x1 = +((leftPx + widthPx) / scale).toFixed(2);
                 const y1 = +(pdfHeight - (topPx / scale)).toFixed(2);
@@ -417,6 +741,7 @@
                     id: 'man_' + Math.random().toString(36).slice(2, 8),
                     text: `[Manual Blackmarker (${Math.round(x1 - x0)}x${Math.round(y1 - y0)}pt)]`,
                     category: 'manual_redaction',
+                    data_domain: 'PII',
                     statute_code: statute,
                     confidence: 1.0,
                     page_number: pageNum,
@@ -451,7 +776,7 @@
 
                     const boxEl = document.createElement('div');
                     boxEl.className = `bbox ${entity.approved ? (isManual ? 'manual' : 'approved') : 'rejected'}`;
-                    boxEl.title = `${entity.text} (${entity.category}) • ${entity.statute_code}`;
+                    boxEl.title = `${entity.text} (${entity.data_domain || 'PII'} • ${entity.category}) • ${entity.statute_code}`;
 
                     const left = bbox.x0 * scale;
                     const top = (pdfHeight - bbox.y1) * scale;
@@ -479,6 +804,8 @@
 
             currentPlan.entities.forEach((entity, index) => {
                 const isManual = entity.tier === 'manual_blackmarker' || entity.category === 'manual_redaction';
+                const dom = (entity.data_domain || 'PII').toUpperCase();
+                const domClass = dom === 'PHI' ? 'badge-phi' : (dom === 'PPI' ? 'badge-ppi' : 'badge-pii');
                 const card = document.createElement('div');
                 card.className = `entity-card ${entity.approved ? (isManual ? 'manual' : 'approved') : 'rejected'}`;
                 card.onclick = () => toggleEntity(index);
@@ -487,10 +814,11 @@
                         <span style="font-weight:700; font-size:0.88rem;">${entity.text}</span>
                         <button onclick="event.stopPropagation(); deleteEntity(${index});" style="padding:2px 6px; font-size:0.72rem; background:#334155;">✕</button>
                     </div>
-                    <div style="font-size:0.76rem; color:var(--text-secondary); margin-top:3px;">
+                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:3px;">
                         p.${entity.page_number} • ${isManual ? 'MANUAL BLACKMARKER' : entity.category.toUpperCase()}
                     </div>
                     <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+                        <span class="badge ${domClass}">${isManual ? 'MANUAL' : dom}</span>
                         <span class="badge">${entity.statute_code}</span>
                         <span class="badge">${Math.round((entity.confidence || 1) * 100)}%</span>
                     </div>
@@ -540,7 +868,12 @@
             document.getElementById('downloadCert').style.display = 'none';
 
             try {
-                const response = await fetch(`/api/documents/${currentDocId}/execute`, { method: 'POST' });
+                const payload = activeCertConfig ? { certificate_config: activeCertConfig } : {};
+                const response = await fetch(`/api/documents/${currentDocId}/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
                 if (response.ok) {
                     document.getElementById('downloadSanitized').href = `/api/documents/${currentDocId}/download`;
                     document.getElementById('downloadSanitized').style.display = 'block';

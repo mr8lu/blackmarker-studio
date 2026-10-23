@@ -137,6 +137,7 @@ public actor WorkerClient {
         pdfURL: URL,
         profile: ReleaseProfileChoice,
         coordinatePolicy: CoordinatePolicyChoice,
+        enabledDomains: [String] = ["PII", "PHI", "PPI"],
         repair: Bool = true,
         visionSpans: [VisionOCRSpan] = []
     ) async throws -> RedactionPlanPayload {
@@ -154,6 +155,7 @@ public actor WorkerClient {
             "input_pdf": pdfURL.path,
             "profile": profile.rawValue,
             "coordinate_policy": coordinatePolicy.rawValue,
+            "enabled_domains": enabledDomains,
             "repair": repair,
             "vision_ocr_spans": encodedSpans
         ]
@@ -166,6 +168,7 @@ public actor WorkerClient {
         plan: RedactionPlanPayload,
         outputURL: URL,
         certificateURL: URL?,
+        certificateConfig: CertificateConfigPayload? = nil,
         repair: Bool = true
     ) async throws -> RedactionResultPayload {
         let planData = try JSONEncoder().encode(plan)
@@ -179,6 +182,11 @@ public actor WorkerClient {
         if let certificateURL {
             params["certificate_pdf"] = certificateURL.path
         }
+        if let certificateConfig,
+           let certData = try? JSONEncoder().encode(certificateConfig),
+           let certObj = try? JSONSerialization.jsonObject(with: certData) {
+            params["certificate_config"] = certObj
+        }
         let data = try await sendRequest(method: "execute", params: params)
         return try JSONDecoder().decode(RedactionResultPayload.self, from: data)
     }
@@ -189,6 +197,8 @@ public actor WorkerClient {
         certificateURL: URL,
         profile: ReleaseProfileChoice,
         coordinatePolicy: CoordinatePolicyChoice,
+        enabledDomains: [String] = ["PII", "PHI", "PPI"],
+        certificateConfig: CertificateConfigPayload? = nil,
         repair: Bool = true,
         visionSpans: [VisionOCRSpan] = []
     ) async throws -> QuickRedactResponse {
@@ -202,15 +212,21 @@ public actor WorkerClient {
                 "y1": span.y1
             ]
         }
-        let params: [String: Any] = [
+        var params: [String: Any] = [
             "input_pdf": pdfURL.path,
             "output_pdf": outputURL.path,
             "certificate_pdf": certificateURL.path,
             "profile": profile.rawValue,
             "coordinate_policy": coordinatePolicy.rawValue,
+            "enabled_domains": enabledDomains,
             "repair": repair,
             "vision_ocr_spans": encodedSpans
         ]
+        if let certificateConfig,
+           let certData = try? JSONEncoder().encode(certificateConfig),
+           let certObj = try? JSONSerialization.jsonObject(with: certData) {
+            params["certificate_config"] = certObj
+        }
         let data = try await sendRequest(method: "quick_redact", params: params)
         return try JSONDecoder().decode(QuickRedactResponse.self, from: data)
     }

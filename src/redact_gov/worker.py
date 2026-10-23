@@ -1,4 +1,4 @@
-"""Ephemeral JSON-RPC stdio worker for the RedactGov macOS native utility.
+"""Ephemeral JSON-RPC stdio worker for the AI Blackmarker (RedactGov) macOS native utility.
 
 Modeled after DigUp's `Contents/Helpers/digup` worker architecture:
 - Spawns on demand when the user inspects or redacts a PDF.
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from redact_gov.core.criteria import ReleaseProfile
-from redact_gov.core.models import RedactionPlan
+from redact_gov.core.models import CERTIFICATE_PRESETS, RedactionPlan
 from redact_gov.core.normalizer import DocumentNormalizer, silence_parser_warnings
 from redact_gov.core.statutes import list_statutes
 from redact_gov.pipeline import RedactionPipeline
@@ -34,13 +34,7 @@ def _resolve_profile(profile_str: Optional[str]) -> ReleaseProfile:
 
 
 def _ensure_writable_output_path(requested_path: Path, input_pdf: Path) -> Path:
-    """Ensure the output file's parent directory is writable, falling back if needed.
-
-    When a macOS app bundle is launched via LaunchServices (`open RedactGov.app`),
-    its initial working directory is `/`, which can produce `/data/output/...` on
-    macOS's read-only root volume. This helper transparently redirects any
-    unwritable `/data/...` path to the workspace's `data/output` or `input_pdf.parent`.
-    """
+    """Ensure the output file's parent directory is writable, falling back if needed."""
     resolved = requested_path.expanduser().resolve()
     try:
         if not str(resolved).startswith("/data/"):
@@ -49,7 +43,6 @@ def _ensure_writable_output_path(requested_path: Path, input_pdf: Path) -> Path:
     except OSError:
         pass
 
-    # Fallback 1: repository root data/output
     repo_root = Path(__file__).resolve().parent.parent.parent
     repo_out = repo_root / "data" / "output"
     try:
@@ -58,7 +51,6 @@ def _ensure_writable_output_path(requested_path: Path, input_pdf: Path) -> Path:
     except OSError:
         pass
 
-    # Fallback 2: same directory as input_pdf
     return input_pdf.parent / resolved.name
 
 
@@ -105,6 +97,10 @@ class EphemeralRedactWorker:
                 result = {
                     "statutes": [s.model_dump() for s in list_statutes()],
                 }
+            elif method == "certificate_presets":
+                result = {
+                    "presets": {k: v.model_dump() for k, v in CERTIFICATE_PRESETS.items()},
+                }
             elif method == "inspect":
                 pdf_path = Path(params["input_pdf"]).expanduser().resolve()
                 if not pdf_path.is_file():
@@ -125,11 +121,18 @@ class EphemeralRedactWorker:
                 profile = _resolve_profile(params.get("profile"))
                 coord_policy = params.get("coordinate_policy") or (
                     "sensitive-only"
-                    if profile == ReleaseProfile.ENVIRONMENTAL_REVIEW
+                    if profile in (
+                        ReleaseProfile.ENVIRONMENTAL_REVIEW,
+                        ReleaseProfile.PCI_DSS,
+                        ReleaseProfile.GLBA,
+                        ReleaseProfile.FRCP_5_2,
+                        ReleaseProfile.AICPA_SOC2,
+                    )
                     else "all"
                 )
                 repair = bool(params.get("repair", True))
                 vision_spans = params.get("vision_ocr_spans") or []
+                enabled_domains = params.get("enabled_domains")
 
                 pipeline = self._get_pipeline()
                 plan = pipeline.create_plan(
@@ -137,6 +140,7 @@ class EphemeralRedactWorker:
                     normalize_imperfect=repair,
                     coordinate_policy=coord_policy,
                     profile=profile,
+                    enabled_domains=enabled_domains,
                     external_ocr_spans=vision_spans,
                 )
                 result = plan.model_dump()
@@ -154,6 +158,9 @@ class EphemeralRedactWorker:
                     else None
                 )
                 repair = bool(params.get("repair", True))
+                cert_config = params.get("certificate_config")
+                agency_name = params.get("agency_name")
+                reviewer_name = params.get("reviewer_name")
 
                 plan_data = params["plan"]
                 plan = RedactionPlan.model_validate(plan_data)
@@ -165,6 +172,9 @@ class EphemeralRedactWorker:
                     output_pdf=output_pdf,
                     certificate_pdf=cert_pdf,
                     repair_imperfect=repair,
+                    agency_name=agency_name,
+                    reviewer_name=reviewer_name,
+                    certificate_config=cert_config,
                 )
                 result = exec_result.model_dump()
             elif method == "quick_redact":
@@ -192,11 +202,21 @@ class EphemeralRedactWorker:
                 profile = _resolve_profile(params.get("profile"))
                 coord_policy = params.get("coordinate_policy") or (
                     "sensitive-only"
-                    if profile == ReleaseProfile.ENVIRONMENTAL_REVIEW
+                    if profile in (
+                        ReleaseProfile.ENVIRONMENTAL_REVIEW,
+                        ReleaseProfile.PCI_DSS,
+                        ReleaseProfile.GLBA,
+                        ReleaseProfile.FRCP_5_2,
+                        ReleaseProfile.AICPA_SOC2,
+                    )
                     else "all"
                 )
                 repair = bool(params.get("repair", True))
                 vision_spans = params.get("vision_ocr_spans") or []
+                enabled_domains = params.get("enabled_domains")
+                cert_config = params.get("certificate_config")
+                agency_name = params.get("agency_name")
+                reviewer_name = params.get("reviewer_name")
 
                 pipeline = self._get_pipeline()
                 plan = pipeline.create_plan(
@@ -204,6 +224,7 @@ class EphemeralRedactWorker:
                     normalize_imperfect=repair,
                     coordinate_policy=coord_policy,
                     profile=profile,
+                    enabled_domains=enabled_domains,
                     external_ocr_spans=vision_spans,
                 )
                 exec_result = pipeline.execute_plan(
@@ -212,6 +233,9 @@ class EphemeralRedactWorker:
                     output_pdf=output_pdf,
                     certificate_pdf=cert_pdf,
                     repair_imperfect=repair,
+                    agency_name=agency_name,
+                    reviewer_name=reviewer_name,
+                    certificate_config=cert_config,
                 )
                 result = {
                     "plan": plan.model_dump(),
@@ -282,4 +306,3 @@ class EphemeralRedactWorker:
 
 if __name__ == "__main__":
     EphemeralRedactWorker().serve_stdio()
-

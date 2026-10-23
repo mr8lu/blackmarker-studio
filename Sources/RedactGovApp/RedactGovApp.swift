@@ -139,7 +139,7 @@ struct MenuBarDropletView: View {
                     Text("AI Blackmarker")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    Text("Va. Code § 2.2-3700 • Air-Gapped")
+                    Text("FOIA • HIPAA • PCI DSS • GLBA • Air-Gapped")
                         .font(.caption)
                         .foregroundStyle(Color(white: 0.78))
                 }
@@ -150,7 +150,7 @@ struct MenuBarDropletView: View {
             Divider().overlay(Color(white: 0.28))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Statutory Release Profile")
+                Text("Compliance Release Profile")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color(white: 0.80))
                 Picker("Release Profile", selection: $viewModel.releaseProfile) {
@@ -160,6 +160,20 @@ struct MenuBarDropletView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .onChange(of: viewModel.releaseProfile) { _, newProfile in
+                    viewModel.applyProfileDefaults(newProfile)
+                }
+
+                HStack(spacing: 6) {
+                    ForEach(DataDomainChoice.allCases) { domain in
+                        DomainTogglePill(
+                            domain: domain,
+                            isActive: viewModel.isDomainActive(domain),
+                            action: { viewModel.toggleDomain(domain) }
+                        )
+                    }
+                }
+                .padding(.top, 2)
             }
 
             // Drag & Drop Sanitization Zone
@@ -361,6 +375,13 @@ struct SovereignStudioView: View {
                 }
 
                 Button {
+                    viewModel.isCertificateSheetPresented = true
+                } label: {
+                    Label("Certificate Template", systemImage: "checkmark.seal.text.page")
+                }
+                .help("Customize the Redaction & Compliance Certificate template (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, SOC 2)")
+
+                Button {
                     Task { await viewModel.executeCurrentPlan() }
                 } label: {
                     Label("Sanitize & Certify", systemImage: "checkmark.shield.fill")
@@ -368,7 +389,7 @@ struct SovereignStudioView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.14, green: 0.68, blue: 0.44))
                 .disabled(viewModel.currentPlan == nil || viewModel.isBusy)
-                .help("Execute PikePDF stream surgery and issue Virginia FOIA Redaction Certificate")
+                .help("Execute PikePDF stream surgery and issue Compliance Redaction Certificate")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -377,8 +398,11 @@ struct SovereignStudioView: View {
                 } label: {
                     Label("Toggle Inspector", systemImage: "sidebar.trailing")
                 }
-                .help("Show or hide the Statutory Redaction Plan inspector")
+                .help("Show or hide the Redaction Plan inspector")
             }
+        }
+        .sheet(isPresented: $viewModel.isCertificateSheetPresented) {
+            CertificateTemplateEditorSheet(viewModel: viewModel)
         }
     }
 }
@@ -415,7 +439,7 @@ struct StudioSidebarView: View {
                     .disabled(viewModel.isBusy)
 
                     if !viewModel.syntheticSamples.isEmpty {
-                        Text("Virginia FOIA Synthetic Corpus")
+                        Text("Multi-Sector Synthetic Corpus")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(Color(white: 0.65))
                             .padding(.top, 4)
@@ -478,11 +502,11 @@ struct StudioSidebarView: View {
                     }
                 }
 
-                // 2. Statutory Policy Configuration
-                SidebarCard(title: "STATUTORY RELEASE POLICY", icon: "building.columns.fill") {
+                // 2. Compliance Policy & A-La-Carte Redaction Scope
+                SidebarCard(title: "COMPLIANCE & REDACTION SCOPE", icon: "building.columns.fill") {
                     VStack(alignment: .leading, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Release Profile")
+                            Text("Sector Release Profile")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color(white: 0.85))
                             Picker("Release Profile", selection: $viewModel.releaseProfile) {
@@ -493,7 +517,7 @@ struct StudioSidebarView: View {
                             .labelsHidden()
                             .pickerStyle(.menu)
                             .onChange(of: viewModel.releaseProfile) { _, newValue in
-                                viewModel.coordinatePolicy = newValue == .environmentalReview ? .sensitiveOnly : .all
+                                viewModel.applyProfileDefaults(newValue)
                                 if let url = viewModel.selectedPDFURL {
                                     Task { await viewModel.loadAndAnalyze(pdfURL: url) }
                                 }
@@ -502,6 +526,51 @@ struct StudioSidebarView: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color(white: 0.68))
                                 .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Divider().overlay(Color(white: 0.22))
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("A-La-Carte Data Domains")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(white: 0.85))
+                            HStack(spacing: 6) {
+                                ForEach(DataDomainChoice.allCases) { domain in
+                                    DomainTogglePill(
+                                        domain: domain,
+                                        isActive: viewModel.isDomainActive(domain),
+                                        action: { viewModel.toggleDomain(domain) }
+                                    )
+                                }
+                            }
+                            Text("Toggle Identity (PII), Healthcare (PHI), or Financial (PPI) detectors independently.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color(white: 0.65))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Divider().overlay(Color(white: 0.22))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Certificate Template")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color(white: 0.85))
+                                Spacer()
+                                Button("Customize...") {
+                                    viewModel.isCertificateSheetPresented = true
+                                }
+                                .buttonStyle(.link)
+                                .font(.system(size: 11, weight: .semibold))
+                            }
+                            Text(viewModel.certificateConfig.certificateTitle)
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(Color(red: 0.48, green: 0.84, blue: 1.0))
+                                .lineLimit(1)
+                            Text(viewModel.certificateConfig.agencyName)
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color(white: 0.68))
+                                .lineLimit(1)
                         }
 
                         Divider().overlay(Color(white: 0.22))
@@ -1335,9 +1404,27 @@ struct EntityInspectorRow: View {
             .help(entity.approved ? "Approved for surgical stream excision" : "Exempted from redaction")
 
             VStack(alignment: .leading, spacing: 5) {
-                // Top Row: Category Badge + Page + Confidence + Delete
+                // Top Row: Domain Badge + Category Badge + Page + Confidence + Delete
                 HStack(spacing: 6) {
-                    Text(isManual ? "MANUAL BLACKMARKER" : entity.category.replacingOccurrences(of: "_", with: " ").uppercased())
+                    let dom = (entity.dataDomain ?? "PII").uppercased()
+                    Text(isManual ? "MANUAL" : dom)
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(
+                                isManual
+                                    ? Color(red: 0.08, green: 0.46, blue: 0.72)
+                                    : (dom == "PHI"
+                                        ? Color(red: 0.52, green: 0.22, blue: 0.78)
+                                        : (dom == "PPI"
+                                            ? Color(red: 0.68, green: 0.48, blue: 0.08)
+                                            : Color(red: 0.12, green: 0.48, blue: 0.76)))
+                            )
+                        )
+                        .foregroundStyle(.white)
+
+                    Text(isManual ? "BLACKMARKER" : entity.category.replacingOccurrences(of: "_", with: " ").uppercased())
                         .font(.system(size: 10, weight: .bold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -1349,6 +1436,7 @@ struct EntityInspectorRow: View {
                             )
                         )
                         .foregroundStyle(.white)
+                        .lineLimit(1)
 
                     Spacer()
 
@@ -1506,3 +1594,154 @@ struct WorkerBadgeView: View {
         .background(Capsule().fill(badgeColor))
     }
 }
+
+// MARK: - A-La-Carte Domain Toggle Pill (PII / PHI / PPI)
+
+struct DomainTogglePill: View {
+    let domain: DataDomainChoice
+    let isActive: Bool
+    let action: () -> Void
+
+    private var tintColor: Color {
+        switch domain {
+        case .pii:
+            return Color(red: 0.22, green: 0.74, blue: 0.98)
+        case .phi:
+            return Color(red: 0.68, green: 0.36, blue: 0.98)
+        case .ppi:
+            return Color(red: 0.94, green: 0.72, blue: 0.16)
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 10, weight: .bold))
+                Text(domain.shortLabel)
+                    .font(.system(size: 10, weight: .bold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isActive ? tintColor.opacity(0.24) : Color(white: 0.11))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(isActive ? tintColor : Color(white: 0.26), lineWidth: 1)
+            )
+            .foregroundStyle(isActive ? .white : Color(white: 0.65))
+        }
+        .buttonStyle(.plain)
+        .help(domain.tooltip)
+    }
+}
+
+// MARK: - Customizable Certificate Template Sheet
+
+struct CertificateTemplateEditorSheet: View {
+    @ObservedObject var viewModel: AppViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Customize Redaction Certificate Template")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("Configure headers, organization/agency name, and compliance attestation for FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, or SOC 2.")
+                        .font(.caption)
+                        .foregroundStyle(Color(white: 0.75))
+                }
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.14, green: 0.55, blue: 0.90))
+            }
+
+            Divider().overlay(Color(white: 0.25))
+
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Industry / Regulatory Preset")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(white: 0.82))
+                    Picker("Preset", selection: $viewModel.certificatePreset) {
+                        ForEach(CertificatePresetChoice.allCases) { preset in
+                            Text(preset.displayName).tag(preset)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .onChange(of: viewModel.certificatePreset) { _, newPreset in
+                        viewModel.applyCertificatePreset(newPreset)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Top Header Banner (Jurisdiction / Sector)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(white: 0.82))
+                    TextField("e.g. HEALTHCARE PRIVACY & DE-IDENTIFICATION COMPLIANCE", text: $viewModel.certificateConfig.jurisdictionBanner)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Regulatory Framework Subtitle")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(white: 0.82))
+                    TextField("e.g. HIPAA Privacy Rule Safe Harbor Standard (45 CFR § 164.514(b)(2))", text: $viewModel.certificateConfig.frameworkSubtitle)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Certificate Document Title")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(white: 0.82))
+                    TextField("e.g. CERTIFICATE OF REDACTION & STREAM SANITIZATION", text: $viewModel.certificateConfig.certificateTitle)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Certifying Organization / Agency / Hospital / Bank")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color(white: 0.82))
+                        TextField("Organization Name", text: $viewModel.certificateConfig.agencyName)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Certifying Officer / System")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color(white: 0.82))
+                        TextField("Reviewer Name", text: $viewModel.certificateConfig.reviewerName)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Formal Legal / Compliance Attestation Statement")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color(white: 0.82))
+                    TextEditor(text: $viewModel.certificateConfig.attestationStatement)
+                        .font(.system(size: 12))
+                        .frame(height: 90)
+                        .padding(4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.10)))
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(white: 0.28), lineWidth: 1))
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 600)
+        .background(Color(red: 0.10, green: 0.11, blue: 0.14))
+        .preferredColorScheme(.dark)
+    }
+}
+

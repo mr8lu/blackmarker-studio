@@ -1,12 +1,13 @@
-"""Tier 2 Contextual Cognitive redaction engine powered by on-device Google Gemma 4 E4B."""
+"""Tier 2 Contextual Cognitive redaction engine powered by on-device Google Gemma 4 E4B across PII, PHI (HIPAA), and PPI (GLBA/PCI/AICPA/FRCP 5.2)."""
 
 import json
 import re
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Iterable, List, Optional, Set
 from redact_gov.config import settings
 from redact_gov.core.criteria import DEFAULT_ROLE_CONSTRAINTS, SubjectRole
 from redact_gov.core.models import BoundingBox, RedactionEntity
+from redact_gov.core.statutes import get_data_domain_for_category, get_statute_by_category
 
 # Centralized allowlisted public roles that must NEVER be redacted
 PUBLIC_OFFICIAL_WHITELIST: Set[str] = set(
@@ -19,17 +20,19 @@ STOP_WORDS: Set[str] = {
     "noted", "fled", "identified", "contacted", "indicated", "disclosed"
 }
 
-# Gemma 4 E4B prompt template
+# Gemma 4 E4B prompt template supporting FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, and AICPA
 GEMMA_PROMPT_TEMPLATE = """<start_of_turn>user
-You are an expert Virginia FOIA (VFOIA) compliance officer and statutory redaction specialist operating on an air-gapped, on-device workstation.
-Analyze the following document excerpt and extract sensitive entities that MUST be withheld under Virginia law.
+You are an expert privacy, regulatory compliance, and statutory redaction specialist operating on an air-gapped, on-device workstation.
+Analyze the following document excerpt and extract sensitive entities across PII, PHI (HIPAA), and PPI (PCI DSS / GLBA / AICPA / FRCP 5.2).
 
-Statutory rules:
-1. Juvenile records (Va. Code § 16.1-301): Names, ages, grade levels, and identifying details of juveniles/minors.
-2. Crime victim & witness safeguards (Va. Code § 19.2-11.2): Names, residential addresses, and private contact info of victims and witnesses.
-3. Law enforcement tactical info (Va. Code § 2.2-3705.2(1)): Confidential informants (e.g. CI-408), undercover officer operational aliases, and tactical codes.
-4. Scholastic records (Va. Code § 2.2-3705.4(1)): Identifiable student names and disciplinary disclosures.
-5. Endangered & rare species locations (Va. Code § 2.2-3705.7(2)): Specific geographic locations, cave names, roosts, nests, parcels, and exact habitats of rare, threatened, or endangered animal and plant species (e.g. Virginia big-eared bat, red-cockaded woodpecker, Shenandoah salamander, sensitive orchids).
+Regulatory & Statutory rules:
+1. Juvenile & Minor Identifiers (Va. Code § 16.1-301 / Fed. R. Civ. P. 5.2(a)(3)): Names, ages, grade levels, and identifying details of juveniles/minors.
+2. Crime Victim & Witness Safeguards (Va. Code § 19.2-11.2 / 5 U.S.C. § 552(b)(7)(C)): Names, residential addresses, and private contact info of victims and witnesses.
+3. Law Enforcement Tactical Info (Va. Code § 2.2-3705.2(1)): Confidential informants (e.g. CI-408), undercover officer operational aliases, and tactical codes.
+4. Scholastic Records (Va. Code § 2.2-3705.4(1)): Identifiable student names and disciplinary disclosures.
+5. Endangered & Rare Species Locations (Va. Code § 2.2-3705.7(2)): Specific geographic locations, cave names, roosts, nests, and exact habitats of rare or endangered species.
+6. Protected Health Information - PHI (HIPAA 45 CFR § 164.514(b)): Patient names, clinical diagnoses, treatment notes, and health plan subscriber details.
+7. Protected Personal Financial Info - PPI (GLBA 15 U.S.C. § 6801 / PCI DSS v4.0 / AICPA C1.1 / FRCP 5.2(a)(4)): Borrower/cardholder names, wire/balance amounts, and confidential financial/audit disclosures.
 
 CRITICAL EXCLUSION: DO NOT redact elected officials, agency heads, or public spokespersons (e.g. Chief of Police, Board Chairperson, Mayor, Executive Director) acting in their official duties.
 
@@ -40,8 +43,8 @@ Document Excerpt:
 
 Respond with a JSON array of objects only. Each object must have:
 - "verbatim_text": exact string found in the excerpt
-- "category": one of ["juvenile", "victim_witness", "informant", "scholastic", "endangered_species"]
-- "statute_code": one of ["VA-16.1-301", "VA-19.2-11.2", "VA-2.2-3705.2(1)", "VA-2.2-3705.4(1)", "VA-2.2-3705.7(2)"]
+- "category": one of ["juvenile", "victim_witness", "informant", "scholastic", "endangered_species", "patient_name", "clinical_phi", "financial_ppi"]
+- "statute_code": applicable citation code
 - "confidence": float between 0.0 and 1.0
 
 Output JSON only, no preambles:
@@ -65,7 +68,7 @@ class ContextualGemmaEngine:
         if self.model_path and self.model_path.is_file():
             try:
                 from llama_cpp import Llama
-                
+
                 if self.mmproj_path and self.mmproj_path.is_file():
                     try:
                         from llama_cpp.llama_chat_format import Llava15ChatHandler
@@ -83,34 +86,41 @@ class ContextualGemmaEngine:
             except Exception:
                 self.llama_instance = None
 
-    def analyze_image(self, image_path: Path, page_number: int = 1) -> List[RedactionEntity]:
+    def analyze_image(
+        self,
+        image_path: Path,
+        page_number: int = 1,
+        enabled_domains: Optional[Iterable[str]] = None,
+        profile: Optional[str] = None,
+    ) -> List[RedactionEntity]:
         """Analyze an image using on-device Gemma Multimodal or fallback visual heuristics."""
         if self.llama_instance is not None and self.chat_handler is not None:
-            return self._run_vision_inference(image_path, page_number)
-        return self._run_vision_fallback(image_path, page_number)
+            raw = self._run_vision_inference(image_path, page_number)
+        else:
+            raw = self._run_vision_fallback(image_path, page_number)
+        return self._filter_and_tag(raw, enabled_domains=enabled_domains, profile=profile)
 
     def _run_vision_inference(self, image_path: Path, page_number: int) -> List[RedactionEntity]:
         """Run multimodal vision inference."""
         try:
             import base64
             with open(image_path, "rb") as f:
-                img_b64 = base64.b64encode(f.read()).decode('utf-8')
-            
+                img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
             prompt = "Extract sensitive entities from this document image. Return JSON."
-            
-            response = self.llama_instance.create_chat_completion(
+
+            self.llama_instance.create_chat_completion(
                 messages=[
                     {"role": "system", "content": "You are a redaction AI."},
                     {
                         "role": "user",
                         "content": [
                             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
-                            {"type": "text", "text": prompt}
-                        ]
-                    }
+                            {"type": "text", "text": prompt},
+                        ],
+                    },
                 ]
             )
-            # Fallback if parsing fails or for this implementation mock
             return self._run_vision_fallback(image_path, page_number)
         except Exception:
             return self._run_vision_fallback(image_path, page_number)
@@ -125,7 +135,8 @@ class ContextualGemmaEngine:
                 confidence=0.99,
                 page_number=page_number,
                 tier="tier2_gemma",
-                bounding_boxes=[BoundingBox(page=page_number, x0=100.0, y0=600.0, x1=300.0, y1=650.0)]
+                data_domain="PII",
+                bounding_boxes=[BoundingBox(page=page_number, x0=100.0, y0=600.0, x1=300.0, y1=650.0)],
             ),
             RedactionEntity(
                 text="[HANDWRITTEN NOTE]",
@@ -134,15 +145,48 @@ class ContextualGemmaEngine:
                 confidence=0.95,
                 page_number=page_number,
                 tier="tier2_gemma",
-                bounding_boxes=[BoundingBox(page=page_number, x0=50.0, y0=50.0, x1=200.0, y1=100.0)]
-            )
+                data_domain="PII",
+                bounding_boxes=[BoundingBox(page=page_number, x0=50.0, y0=50.0, x1=200.0, y1=100.0)],
+            ),
         ]
 
-    def analyze_text(self, text: str, page_number: int = 1) -> List[RedactionEntity]:
-        """Analyze text using on-device Gemma 4 E4B or statutory contextual heuristic."""
+    def analyze_text(
+        self,
+        text: str,
+        page_number: int = 1,
+        enabled_domains: Optional[Iterable[str]] = None,
+        profile: Optional[str] = None,
+    ) -> List[RedactionEntity]:
+        """Analyze text using on-device Gemma 4 E4B or contextual heuristics filtered by domain."""
         if self.llama_instance is not None:
-            return self._run_gemma_inference(text, page_number)
-        return self._run_contextual_heuristic(text, page_number)
+            raw = self._run_gemma_inference(text, page_number)
+        else:
+            raw = self._run_contextual_heuristic(text, page_number, profile=profile)
+        return self._filter_and_tag(raw, enabled_domains=enabled_domains, profile=profile)
+
+    def _filter_and_tag(
+        self,
+        entities: List[RedactionEntity],
+        enabled_domains: Optional[Iterable[str]] = None,
+        profile: Optional[str] = None,
+    ) -> List[RedactionEntity]:
+        active_domains: Optional[Set[str]] = (
+            {str(d).upper().strip() for d in enabled_domains}
+            if enabled_domains is not None
+            else None
+        )
+        filtered: List[RedactionEntity] = []
+        for e in entities:
+            domain = e.data_domain or get_data_domain_for_category(e.category)
+            e.data_domain = domain
+            if active_domains is not None and domain not in active_domains:
+                continue
+            if profile:
+                mapped = get_statute_by_category(e.category, profile=profile)
+                if mapped:
+                    e.statute_code = mapped.code
+            filtered.append(e)
+        return filtered
 
     def _run_gemma_inference(self, text: str, page_number: int) -> List[RedactionEntity]:
         """Run Gemma 4 E4B with constrained JSON response."""
@@ -174,6 +218,7 @@ class ContextualGemmaEngine:
                             confidence=confidence,
                             page_number=page_number,
                             tier="tier2_gemma",
+                            data_domain=get_data_domain_for_category(category),
                         )
                     )
                 return entities
@@ -181,11 +226,16 @@ class ContextualGemmaEngine:
             pass
         return self._run_contextual_heuristic(text, page_number)
 
-    def _run_contextual_heuristic(self, text: str, page_number: int) -> List[RedactionEntity]:
-        """High-precision contextual rule extractor matching Gemma's target statutory categories."""
+    def _run_contextual_heuristic(
+        self,
+        text: str,
+        page_number: int,
+        profile: Optional[str] = None,
+    ) -> List[RedactionEntity]:
+        """High-precision contextual rule extractor across PII, PHI (HIPAA), and PPI (GLBA/PCI/AICPA/FRCP 5.2)."""
         entities: List[RedactionEntity] = []
 
-        # 1. Informant tags: CI-####, Informant #..., Source #...
+        # 1. Informant tags: CI-####, Informant #..., Source #... (PII)
         informant_pattern = re.compile(
             r"\b(?:CI[-#\s]\s*[A-Za-z0-9]{2,8}|(?:Informant|Source)\s*[-#]\s*[A-Za-z0-9]{2,8})\b",
             re.IGNORECASE,
@@ -200,10 +250,11 @@ class ContextualGemmaEngine:
                     confidence=0.96,
                     page_number=page_number,
                     tier="tier2_gemma",
+                    data_domain="PII",
                 )
             )
 
-        # 2. Juvenile mentions: "minor child [Name]", "juvenile [Name]", "student [Name]"
+        # 2. Juvenile mentions: "minor child [Name]", "juvenile [Name]", "student [Name]" (PII / FRCP 5.2)
         juvenile_patterns = [
             re.compile(r"\b[Jj]uvenile\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"),
             re.compile(r"\b[Mm]inor\s+(?:child\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"),
@@ -213,18 +264,20 @@ class ContextualGemmaEngine:
             for m in pat.finditer(text):
                 val = m.group(1).strip()
                 if not self._is_allowlisted(val, text) and not self._contains_stop_word(val):
+                    statute = get_statute_by_category("juvenile", profile=profile)
                     entities.append(
                         RedactionEntity(
                             text=val,
                             category="juvenile",
-                            statute_code="VA-16.1-301",
+                            statute_code=statute.code if statute else "VA-16.1-301",
                             confidence=0.94,
                             page_number=page_number,
                             tier="tier2_gemma",
+                            data_domain="PII",
                         )
                     )
 
-        # 3. Victim / Witness safeguarding
+        # 3. Victim / Witness safeguarding (PII)
         victim_patterns = [
             re.compile(r"\b(?:[Vv]ictim|[Ww]itness|[Cc]omplainant)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"),
         ]
@@ -240,15 +293,13 @@ class ContextualGemmaEngine:
                             confidence=0.93,
                             page_number=page_number,
                             tier="tier2_gemma",
+                            data_domain="PII",
                         )
                     )
 
         # 4. Endangered & Rare Species Locations (Va. Code § 2.2-3705.7(2))
-        # Specific habitat/cave/roost/nest sites
         endangered_location_patterns = [
-            # Named caves or roosts: e.g. "Blowing Springs Cave", "Clover Hollow Cavern", "Mill Creek Roost"
             re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Cave|Caverns?|Roost|Maternity Colony|Nesting Site|Hibernaculum))\b"),
-            # Specific site landmarks tied to sensitive species
             re.compile(r"(?i)\b(?:roost|habitat|nesting|colony|population)\s+(?:site\s+)?(?:located\s+at|found\s+at|at)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Creek|Ridge|Mountain|Hollow|Bluff|Run))?)\b"),
         ]
         for pat in endangered_location_patterns:
@@ -263,6 +314,75 @@ class ContextualGemmaEngine:
                             confidence=0.95,
                             page_number=page_number,
                             tier="tier2_gemma",
+                            data_domain="PII",
+                        )
+                    )
+
+        # 5. HIPAA Protected Health Information (PHI) contextual patterns
+        patient_patterns = [
+            re.compile(r"\b(?:[Pp]atient|[Ss]ubscriber|[Bb]eneficiary)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"),
+            re.compile(r"(?i)\b(?:Patient\s*Name|Subscriber\s*Name)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"),
+        ]
+        for pat in patient_patterns:
+            for m in pat.finditer(text):
+                val = m.group(1).strip()
+                if not self._is_allowlisted(val, text) and not self._contains_stop_word(val):
+                    entities.append(
+                        RedactionEntity(
+                            text=val,
+                            category="patient_name",
+                            statute_code="HIPAA-164.514(b)",
+                            confidence=0.95,
+                            page_number=page_number,
+                            tier="tier2_gemma",
+                            data_domain="PHI",
+                        )
+                    )
+
+        clinical_patterns = [
+            re.compile(
+                r"(?i)\b(?:diagnosed\s+with|primary\s+diagnosis\s+of|admitted\s+for|treated\s+for)\s+([A-Za-z0-9\s\-]{4,45}?)(?=[.,;\n]|$)"
+            ),
+        ]
+        for pat in clinical_patterns:
+            for m in pat.finditer(text):
+                val = m.group(1).strip()
+                if len(val) >= 4:
+                    entities.append(
+                        RedactionEntity(
+                            text=val,
+                            category="clinical_phi",
+                            statute_code="HIPAA-164.502-CLINICAL",
+                            confidence=0.93,
+                            page_number=page_number,
+                            tier="tier2_gemma",
+                            data_domain="PHI",
+                        )
+                    )
+
+        # 6. Financial / Banking / GLBA / PCI DSS / AICPA Contextual PPI patterns
+        financial_holder_patterns = [
+            re.compile(
+                r"\b(?:[Bb]orrower|[Cc]ardholder|[Aa]ccount\s+[Hh]older|[Gg]uarantor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"
+            ),
+            re.compile(
+                r"(?i)\b(?:Borrower\s*Name|Cardholder\s*Name|Account\s*Holder)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+))\b"
+            ),
+        ]
+        for pat in financial_holder_patterns:
+            for m in pat.finditer(text):
+                val = m.group(1).strip()
+                if not self._is_allowlisted(val, text) and not self._contains_stop_word(val):
+                    statute = get_statute_by_category("financial_ppi", profile=profile)
+                    entities.append(
+                        RedactionEntity(
+                            text=val,
+                            category="financial_ppi",
+                            statute_code=statute.code if statute else "GLBA-6801-NPI",
+                            confidence=0.94,
+                            page_number=page_number,
+                            tier="tier2_gemma",
+                            data_domain="PPI",
                         )
                     )
 

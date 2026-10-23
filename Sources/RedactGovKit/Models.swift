@@ -1,8 +1,175 @@
 import Foundation
 
+public enum DataDomainChoice: String, CaseIterable, Codable, Sendable, Identifiable {
+    case pii = "PII"
+    case phi = "PHI"
+    case ppi = "PPI"
+
+    public var id: String { rawValue }
+
+    public var shortLabel: String {
+        switch self {
+        case .pii: return "PII • Identity"
+        case .phi: return "PHI • Health"
+        case .ppi: return "PPI • Finance"
+        }
+    }
+
+    public var tooltip: String {
+        switch self {
+        case .pii:
+            return "Personally Identifiable Information (SSN, Driver's License, DOB, Phone, Email, Passport, Juvenile/Victim)"
+        case .phi:
+            return "Protected Health Information (MRN, NPI, ICD-10 Diagnosis, Medicare HICN/MBI, Health Plan ID)"
+        case .ppi:
+            return "Payment & Financial Information (Credit/Debit PAN, ABA Routing, IBAN, Bank Account, Tax ID)"
+        }
+    }
+}
+
+public enum CertificatePresetChoice: String, CaseIterable, Codable, Sendable, Identifiable {
+    case genericCompliance = "generic_compliance"
+    case publicFoia = "public_foia"
+    case hipaaHealthcare = "hipaa_healthcare"
+    case bankingGlbaPci = "banking_glba_pci"
+    case judicialFrcp = "judicial_frcp"
+    case enterpriseAicpa = "enterprise_aicpa"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .genericCompliance:
+            return "Multi-Sector Compliance (FOIA / HIPAA / PCI / SOC 2)"
+        case .publicFoia:
+            return "Government FOIA & Open Records"
+        case .hipaaHealthcare:
+            return "Healthcare HIPAA Safe Harbor (45 CFR § 164.514)"
+        case .bankingGlbaPci:
+            return "Banking & Payment Security (GLBA / PCI DSS v4.0)"
+        case .judicialFrcp:
+            return "Judicial Privacy Filing (Fed. R. Civ. P. 5.2)"
+        case .enterpriseAicpa:
+            return "Enterprise SOC 2 / AICPA Confidentiality"
+        }
+    }
+
+    public var defaultConfig: CertificateConfigPayload {
+        switch self {
+        case .genericCompliance:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "DATA PRIVACY & SECURITY COMPLIANCE",
+                frameworkSubtitle: "Multi-Sector Information Governance • FOIA • HIPAA • PCI DSS • GLBA • SOC 2",
+                certificateTitle: "CERTIFICATE OF REDACTION & STREAM SANITIZATION",
+                agencyName: "Information Security & Privacy Office",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "The undersigned certifies that the referenced document has been sanitized using deterministic stream-level glyph excision (PikePDF/QPDF). All approved Personally Identifiable Information (PII), Protected Health Information (PHI), and Personal Payment/Financial Information (PPI) have been permanently removed from the underlying PDF content streams, XMP metadata has been eradicated, and zero-residual byte verification has passed."
+            )
+        case .publicFoia:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "COMMONWEALTH OF VIRGINIA / PUBLIC RECORDS COMPLIANCE",
+                frameworkSubtitle: "Freedom of Information Act (5 U.S.C. § 552 / Va. Code § 2.2-3700 et seq.)",
+                certificateTitle: "OFFICIAL FOIA REDACTION & SANITIZATION CERTIFICATE",
+                agencyName: "Public Records & FOIA Compliance Office",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "Pursuant to Va. Code § 2.2-3704.01 and 5 U.S.C. § 552(b), the undersigned certifies that the exemptions cited above apply to the excised portions of this record, and that all non-exempt portions of the public record have been released intact."
+            )
+        case .hipaaHealthcare:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "HEALTHCARE PRIVACY & DE-IDENTIFICATION COMPLIANCE",
+                frameworkSubtitle: "HIPAA Privacy Rule Safe Harbor Standard (45 CFR § 164.514(b)(2))",
+                certificateTitle: "HIPAA PHI DE-IDENTIFICATION & SANITIZATION CERTIFICATE",
+                agencyName: "Health Information Privacy & Compliance Office",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "Pursuant to 45 CFR § 164.514(b)(2) (HIPAA Safe Harbor Method), the undersigned certifies that Protected Health Information (PHI), Medical Record Numbers, NPIs, ICD-10 clinical identifiers, and patient identifiers listed above have been permanently excised from the PDF content streams with zero residual text."
+            )
+        case .bankingGlbaPci:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "FINANCIAL & PAYMENT CARD DATA SECURITY COMPLIANCE",
+                frameworkSubtitle: "PCI DSS v4.0 Req. 3.4 • Gramm-Leach-Bliley Act (15 U.S.C. § 6801 / 16 CFR Part 314)",
+                certificateTitle: "PCI DSS / GLBA FINANCIAL SANITIZATION CERTIFICATE",
+                agencyName: "Financial Information Security & Risk Governance",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "Pursuant to PCI DSS v4.0 Requirement 3.4 and the GLBA Safeguards Rule (16 CFR Part 314), the undersigned certifies that Primary Account Numbers (PAN), routing/IBAN identifiers, and nonpublic personal financial information (NPI/PPI) have been irreversibly removed from the PDF object streams."
+            )
+        case .judicialFrcp:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "UNITED STATES & STATE JUDICIAL PRIVACY COMPLIANCE",
+                frameworkSubtitle: "Federal Rule of Civil Procedure 5.2 / Federal Rule of Criminal Procedure 49.1",
+                certificateTitle: "RULE 5.2 PRIVACY REDACTION CERTIFICATE",
+                agencyName: "Office of the Clerk / Litigation Compliance",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "Pursuant to Fed. R. Civ. P. 5.2(a), the undersigned certifies that Social Security numbers, taxpayer-identification numbers, birth dates, minor initials/names, and financial-account numbers have been redacted prior to public docket filing."
+            )
+        case .enterpriseAicpa:
+            return CertificateConfigPayload(
+                templateId: rawValue,
+                jurisdictionBanner: "ENTERPRISE TRUST SERVICES & PRIVACY GOVERNANCE",
+                frameworkSubtitle: "AICPA Trust Services Criteria (SOC 2 CC6.1 / P4.2 / C1.2)",
+                certificateTitle: "CONFIDENTIAL & PII/PHI/PPI SANITIZATION CERTIFICATE",
+                agencyName: "Enterprise GRC & Audit Assurance",
+                reviewerName: "AI Blackmarker Sovereign Engine",
+                attestationStatement: "In accordance with AICPA Trust Services Criteria for Confidentiality (C1.2) and Privacy (P4.2), the undersigned certifies that sensitive personal, health, and financial data elements have been permanently sanitized and verified free of residual underlying text."
+            )
+        }
+    }
+}
+
+public struct CertificateConfigPayload: Codable, Hashable, Sendable {
+    public var templateId: String
+    public var jurisdictionBanner: String
+    public var frameworkSubtitle: String
+    public var certificateTitle: String
+    public var agencyName: String
+    public var reviewerName: String
+    public var attestationStatement: String
+    public var includeSha256Signature: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case templateId = "template_id"
+        case jurisdictionBanner = "jurisdiction_banner"
+        case frameworkSubtitle = "framework_subtitle"
+        case certificateTitle = "certificate_title"
+        case agencyName = "agency_name"
+        case reviewerName = "reviewer_name"
+        case attestationStatement = "attestation_statement"
+        case includeSha256Signature = "include_sha256_signature"
+    }
+
+    public init(
+        templateId: String = "generic_compliance",
+        jurisdictionBanner: String,
+        frameworkSubtitle: String,
+        certificateTitle: String,
+        agencyName: String,
+        reviewerName: String,
+        attestationStatement: String,
+        includeSha256Signature: Bool = true
+    ) {
+        self.templateId = templateId
+        self.jurisdictionBanner = jurisdictionBanner
+        self.frameworkSubtitle = frameworkSubtitle
+        self.certificateTitle = certificateTitle
+        self.agencyName = agencyName
+        self.reviewerName = reviewerName
+        self.attestationStatement = attestationStatement
+        self.includeSha256Signature = includeSha256Signature
+    }
+}
+
 public enum ReleaseProfileChoice: String, CaseIterable, Codable, Sendable, Identifiable {
     case publicFoia = "public-foia"
     case strictPrivacy = "strict-privacy"
+    case hipaa = "hipaa"
+    case pciDss = "pci-dss"
+    case glba = "glba"
+    case frcp52 = "frcp-5-2"
+    case aicpaSoc2 = "aicpa-soc2"
     case environmentalReview = "environmental-review"
     case lawEnforcement = "law-enforcement"
 
@@ -11,20 +178,35 @@ public enum ReleaseProfileChoice: String, CaseIterable, Codable, Sendable, Ident
     public var displayName: String {
         switch self {
         case .publicFoia:
-            return "Public FOIA (Va. Code § 2.2-3700)"
+            return "Government FOIA & Open Records"
         case .strictPrivacy:
-            return "Strict Privacy (Maximum PII Scrub)"
+            return "Strict Maximum Privacy (All PII/PHI/PPI)"
+        case .hipaa:
+            return "Healthcare HIPAA Safe Harbor (45 CFR § 164.514)"
+        case .pciDss:
+            return "Payment Card PCI DSS v4.0 (Req. 3.4)"
+        case .glba:
+            return "Banking & Finance GLBA (16 CFR Part 314)"
+        case .frcp52:
+            return "Judicial Filing (Fed. R. Civ. P. 5.2)"
+        case .aicpaSoc2:
+            return "Enterprise AICPA SOC 2 Confidentiality"
         case .environmentalReview:
-            return "Environmental Review (§ 2.2-3705.7)"
+            return "Environmental & Critical Habitat Review"
         case .lawEnforcement:
-            return "Law Enforcement / CJIS (§ 2.2-3705.2)"
+            return "Law Enforcement & Victim Protection"
         }
     }
 
     public var shortLabel: String {
         switch self {
-        case .publicFoia: return "Public FOIA"
+        case .publicFoia: return "Gov FOIA"
         case .strictPrivacy: return "Strict Privacy"
+        case .hipaa: return "HIPAA Safe Harbor"
+        case .pciDss: return "PCI DSS v4.0"
+        case .glba: return "Banking GLBA"
+        case .frcp52: return "FRCP Rule 5.2"
+        case .aicpaSoc2: return "AICPA SOC 2"
         case .environmentalReview: return "Environmental"
         case .lawEnforcement: return "Law Enforcement"
         }
@@ -37,13 +219,55 @@ public enum ReleaseProfileChoice: String, CaseIterable, Codable, Sendable, Ident
     public var subtitle: String {
         switch self {
         case .publicFoia:
-            return "Standard VFOIA release: redacts citizen PII while preserving public official signatures."
+            return "Federal & State FOIA release: redacts citizen PII, PHI, and PPI while preserving official roles."
         case .strictPrivacy:
-            return "Maximum privacy scrub: redacts all personal names, addresses, phones, SSNs, and coordinates."
+            return "Maximum cross-sector scrub: redacts all personal, healthcare, financial, and location identifiers."
+        case .hipaa:
+            return "HIPAA 45 CFR § 164.514(b) Safe Harbor: excises MRNs, NPIs, ICD-10 codes, Medicare IDs, and patient PII."
+        case .pciDss:
+            return "PCI DSS v4.0 Req. 3.4: targets Primary Account Numbers (PAN), ABA routing, IBAN, and financial accounts."
+        case .glba:
+            return "Gramm-Leach-Bliley Act Safeguards: redacts nonpublic personal financial information (PPI) and customer PII."
+        case .frcp52:
+            return "Fed. R. Civ. P. 5.2: redacts SSNs, taxpayer IDs, birth dates, minor names, and financial accounts in court filings."
+        case .aicpaSoc2:
+            return "AICPA Trust Services Criteria (CC6.1 / P4.2): sanitizes customer PII and financial PPI for audit artifacts."
         case .environmentalReview:
-            return "Redacts critical habitat/endangered species coordinates (§ 2.2-3705.7) while keeping general project locations."
+            return "Redacts critical habitat/endangered species coordinates while keeping general project locations."
         case .lawEnforcement:
-            return "Protects victims, witnesses, juveniles, and tactical personnel under Va. Code § 2.2-3706."
+            return "Protects victims, witnesses, juveniles, medical notes, and tactical personnel."
+        }
+    }
+
+    public var defaultDomains: Set<DataDomainChoice> {
+        switch self {
+        case .publicFoia, .strictPrivacy:
+            return [.pii, .phi, .ppi]
+        case .hipaa, .lawEnforcement:
+            return [.pii, .phi]
+        case .pciDss:
+            return [.ppi]
+        case .glba, .frcp52, .aicpaSoc2:
+            return [.pii, .ppi]
+        case .environmentalReview:
+            return [.pii]
+        }
+    }
+
+    public var defaultCertificatePreset: CertificatePresetChoice {
+        switch self {
+        case .publicFoia, .environmentalReview, .lawEnforcement:
+            return .publicFoia
+        case .strictPrivacy:
+            return .genericCompliance
+        case .hipaa:
+            return .hipaaHealthcare
+        case .pciDss, .glba:
+            return .bankingGlbaPci
+        case .frcp52:
+            return .judicialFrcp
+        case .aicpaSoc2:
+            return .enterpriseAicpa
         }
     }
 }
@@ -91,6 +315,7 @@ public struct RedactionEntityItem: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var text: String
     public var category: String
+    public var dataDomain: String?
     public var statuteCode: String
     public var confidence: Double
     public var pageNumber: Int
@@ -103,6 +328,7 @@ public struct RedactionEntityItem: Codable, Identifiable, Hashable, Sendable {
         case id
         case text
         case category
+        case dataDomain = "data_domain"
         case statuteCode = "statute_code"
         case confidence
         case pageNumber = "page_number"
@@ -116,6 +342,7 @@ public struct RedactionEntityItem: Codable, Identifiable, Hashable, Sendable {
         id: String = String(UUID().uuidString.prefix(8)).lowercased(),
         text: String,
         category: String,
+        dataDomain: String? = "PII",
         statuteCode: String,
         confidence: Double,
         pageNumber: Int,
@@ -127,6 +354,7 @@ public struct RedactionEntityItem: Codable, Identifiable, Hashable, Sendable {
         self.id = id
         self.text = text
         self.category = category
+        self.dataDomain = dataDomain
         self.statuteCode = statuteCode
         self.confidence = confidence
         self.pageNumber = pageNumber

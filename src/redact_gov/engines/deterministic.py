@@ -1,17 +1,17 @@
-"""Tier 1 Deterministic Fast Path redaction engine."""
+"""Tier 1 Deterministic Fast Path redaction engine for PII, PHI (HIPAA), and PPI (PCI DSS / GLBA / AICPA / FRCP 5.2)."""
 
 import re
-from typing import List, Tuple
+from typing import Iterable, List, Optional, Set
 from redact_gov.core.models import RedactionEntity
-from redact_gov.core.statutes import get_statute_by_category
+from redact_gov.core.statutes import get_data_domain_for_category, get_statute_by_category
 
 
 def luhn_checksum_valid(card_number_str: str) -> bool:
-    """Validate credit card number using Luhn algorithm."""
+    """Validate credit card Primary Account Number (PAN) using the Luhn algorithm."""
     digits = [int(c) for c in card_number_str if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
-    
+
     checksum = 0
     reverse_digits = digits[::-1]
     for i, d in enumerate(reverse_digits):
@@ -23,19 +23,28 @@ def luhn_checksum_valid(card_number_str: str) -> bool:
     return checksum % 10 == 0
 
 
+def aba_routing_checksum_valid(routing_str: str) -> bool:
+    """Validate 9-digit US ABA routing transit number using the standard 3-7-1 weighted modulus-10 check."""
+    digits = [int(c) for c in routing_str if c.isdigit()]
+    if len(digits) != 9:
+        return False
+    weights = (3, 7, 1, 3, 7, 1, 3, 7, 1)
+    total = sum(d * w for d, w in zip(digits, weights))
+    return total > 0 and total % 10 == 0
+
+
 class DeterministicRedactionEngine:
-    """Sub-second regex and pattern matching engine for high-confidence PII and sensitive coordinates."""
+    """Sub-second regex and algorithmic pattern matching engine across PII, PHI, and PPI domains."""
 
     PATTERNS = [
+        # --- PII (Personally Identifiable Information: FOIA, FRCP 5.2, AICPA Privacy) ---
         # Social Security Number (SSN): 3 digits, dash/space, 2 digits, dash/space, 4 digits
         (
             "ssn",
-            re.compile(
-                r"\b\d{3}[- ]\d{2}[- ]\d{4}\b"
-            ),
+            re.compile(r"\b\d{3}[- ]\d{2}[- ]\d{4}\b"),
             0.99,
         ),
-        # Virginia Driver's License: 1 letter + 8 digits (standard format)
+        # State Driver's License (1 letter + 8 digits standard format)
         (
             "driver_license",
             re.compile(r"\b[A-Za-z][-\s]?\d{8}\b"),
@@ -49,7 +58,7 @@ class DeterministicRedactionEngine:
             ),
             0.95,
         ),
-        # Dates of birth explicitly labeled
+        # Dates of birth explicitly labeled (PII / FRCP 5.2 / HIPAA)
         (
             "dob",
             re.compile(
@@ -65,12 +74,99 @@ class DeterministicRedactionEngine:
             ),
             0.95,
         ),
-        # Credit Card Numbers
+        # --- PHI (Protected Health Information: HIPAA 45 CFR § 164.514 Safe Harbor) ---
+        # Medical Record Number (MRN)
         (
-            "credit_card",
-            re.compile(r"\b(?:\d{4}[- ]?){3}\d{4}\b"),
+            "mrn",
+            re.compile(
+                r"(?i)\b(?:MRN|Medical Record(?:\s*(?:No|Number|#))?|Patient ID|Chart(?:\s*(?:No|#))?)[\s:#-]*([A-Z0-9]{2,4}-?\d{4,10}|\d{6,10})\b"
+            ),
+            0.98,
+        ),
+        # National Provider Identifier (NPI - 10 digits)
+        (
+            "npi",
+            re.compile(
+                r"(?i)\b(?:NPI|Provider NPI)[\s:#-]*([12]\d{9})\b"
+            ),
+            0.98,
+        ),
+        # Health Plan Beneficiary / Member / Policy ID
+        (
+            "health_plan_id",
+            re.compile(
+                r"(?i)\b(?:Health Plan(?:\s*ID)?|Member ID|Beneficiary ID|Subscriber ID|Policy(?:\s*(?:No|Number|#|ID))?|Medicaid ID|Medicare(?:\s*#|\s*ID)?)[\s:#-]*([A-Z0-9]{3,5}-?[A-Z0-9]{4,10})\b"
+            ),
+            0.97,
+        ),
+        # ICD-10 / CPT Clinical Diagnosis Codes
+        (
+            "icd10_code",
+            re.compile(
+                r"(?i)\b(?:ICD-?10|Dx|Diagnosis(?:\s*Code)?)[\s:#-]*([A-TV-Z]\d{2}(?:\.[A-Z0-9]{1,4})?)\b"
+            ),
             0.96,
         ),
+        # Hospital Admission / Discharge / Treatment Dates (HIPAA Safe Harbor § 164.514(b)(2)(i)(C))
+        (
+            "admission_date",
+            re.compile(
+                r"(?i)\b(?:Admit(?:ted)?(?:\s*Date)?|Admission Date|Discharge(?:d)?(?:\s*Date)?|Date of Service|DOS)[\s:]*([0-1]?\d[/-][0-3]?\d[/-](?:19|20)\d{2})\b"
+            ),
+            0.96,
+        ),
+        # --- PPI (Protected Personal Financial Information: PCI DSS, GLBA, AICPA, FRCP 5.2) ---
+        # Credit / Payment Card Primary Account Numbers (PAN - 16-digit and 15-digit Amex)
+        (
+            "credit_card",
+            re.compile(r"\b(?:\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}|\d{4}[- ]?\d{6}[- ]?\d{5})\b"),
+            0.97,
+        ),
+        # PCI DSS Sensitive Authentication Data (CVV / CVC / CID)
+        (
+            "cvv_code",
+            re.compile(r"(?i)\b(?:CVV2?|CVC2?|CID|Security Code)[\s:#-]*(\d{3,4})\b"),
+            0.98,
+        ),
+        # GLBA / FRCP 5.2 ABA Routing Transit Number (9 digits)
+        (
+            "routing_aba",
+            re.compile(r"(?i)\b(?:Routing(?:\s*(?:No|Number|#))?|ABA(?:\s*Routing)?)[\s:#-]*(\d{9})\b"),
+            0.98,
+        ),
+        # GLBA / FRCP 5.2 Bank Checking / Savings / Wire Account Number
+        (
+            "bank_account",
+            re.compile(
+                r"(?i)\b(?:Bank\s*Account|Checking\s*Account|Savings\s*Account|Wire\s*Account|Acct(?:\s*(?:No|Number|#))?|Account(?:\s*(?:No|Number|#)))[\s:#-]*([A-Z0-9]{2,4}-?\d{6,14}|\d{8,17})\b"
+            ),
+            0.97,
+        ),
+        # International Bank Account Number (IBAN)
+        (
+            "iban_swift",
+            re.compile(
+                r"(?i)\b(?:IBAN[\s:#-]*)?([A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}(?:[A-Z0-9]?){0,16})\b"
+            ),
+            0.97,
+        ),
+        # Employer Identification Number / Taxpayer ID (EIN / TIN: AICPA & FRCP 5.2)
+        (
+            "tax_id_ein",
+            re.compile(
+                r"(?i)\b(?:EIN|TIN|Tax(?:\s*ID|\s*Identification(?:\s*No)?)|FEIN)[\s:#-]*(\d{2}-\d{7})\b"
+            ),
+            0.98,
+        ),
+        # Loan / Mortgage / Credit Account Identifier (GLBA)
+        (
+            "loan_account",
+            re.compile(
+                r"(?i)\b(?:Loan(?:\s*(?:No|Number|#|ID))?|Mortgage(?:\s*(?:No|Acct|#))?)[\s:#-]*([A-Z]{2,4}-\d{5,12}|\d{7,14})\b"
+            ),
+            0.96,
+        ),
+        # --- Geographic / Environmental Coordinates ---
         # DMS GPS Coordinates (e.g. 37°58'42.1"N, 79°49'15.3"W)
         (
             "gps_coordinate",
@@ -96,7 +192,7 @@ class DeterministicRedactionEngine:
             ),
             0.96,
         ),
-        # Labeled or standalone Decimal Latitude in Virginia bounds (e.g. 37.339070° LAT., LATITUDE: 37.339070°, 37.338590 N)
+        # Labeled or standalone Decimal Latitude in Virginia bounds
         (
             "gps_coordinate",
             re.compile(
@@ -104,7 +200,7 @@ class DeterministicRedactionEngine:
             ),
             0.96,
         ),
-        # Labeled or standalone Decimal Longitude in Virginia bounds (e.g. -79.260396° LONG., LONGITUDE: -79.260396°, 79.260396 W)
+        # Labeled or standalone Decimal Longitude in Virginia bounds
         (
             "gps_coordinate",
             re.compile(
@@ -114,14 +210,29 @@ class DeterministicRedactionEngine:
         ),
     ]
 
-    def scan_text(self, text: str, page_number: int = 1) -> List[RedactionEntity]:
-        """Scan text and return identified RedactionEntity targets."""
+    def scan_text(
+        self,
+        text: str,
+        page_number: int = 1,
+        enabled_domains: Optional[Iterable[str]] = None,
+        profile: Optional[str] = None,
+    ) -> List[RedactionEntity]:
+        """Scan text and return identified RedactionEntity targets filtered by a-la-carte domains."""
         entities: List[RedactionEntity] = []
         seen_spans = set()
+        active_domains: Optional[Set[str]] = (
+            {str(d).upper().strip() for d in enabled_domains}
+            if enabled_domains is not None
+            else None
+        )
 
         for category, pattern, confidence in self.PATTERNS:
+            domain = get_data_domain_for_category(category)
+            if active_domains is not None and domain not in active_domains:
+                continue
+
             for match in pattern.finditer(text):
-                # For capture groups (e.g. for DOB/GPS with prefix), capture only the value group
+                # For capture groups (e.g. for DOB/MRN/Bank/GPS with prefix), capture only the value group
                 if match.groups() and match.group(1):
                     matched_text = match.group(1)
                     span = match.span(1)
@@ -129,16 +240,15 @@ class DeterministicRedactionEngine:
                     matched_text = match.group(0)
                     span = match.span(0)
 
-                # Avoid duplicate spans
                 if span in seen_spans:
                     continue
-                seen_spans.add(span)
 
-                # Extra check for credit card
                 if category == "credit_card" and not luhn_checksum_valid(matched_text):
                     continue
 
-                statute = get_statute_by_category(category)
+                seen_spans.add(span)
+
+                statute = get_statute_by_category(category, profile=profile)
                 statute_code = statute.code if statute else "VA-2.2-3705.1(10)"
 
                 entities.append(
@@ -149,6 +259,7 @@ class DeterministicRedactionEngine:
                         confidence=confidence,
                         page_number=page_number,
                         tier="tier1_deterministic",
+                        data_domain=domain,
                     )
                 )
 
