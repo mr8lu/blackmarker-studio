@@ -52,12 +52,17 @@ class PikePdfSanitizer:
                 target_strings = []
                 for e in page_entities:
                     txt = e.text.strip()
-                    if txt:
+                    if txt and not txt.startswith("[Manual"):
                         target_strings.append(txt)
                         if "\n" in txt:
                             for sub in txt.splitlines():
                                 if len(sub.strip()) > 1:
                                     target_strings.append(sub.strip())
+                        if e.category == "manual_redaction" or e.tier == "manual_blackmarker":
+                            for word in txt.split():
+                                w_clean = word.strip()
+                                if len(w_clean) >= 2 and w_clean not in target_strings:
+                                    target_strings.append(w_clean)
                         # Extract numeric coordinates if present (e.g. 37.339070 from 37.339070° LAT.)
                         for num in re.findall(r"\b\d{1,3}\.\d{4,8}\b", txt):
                             if num not in target_strings:

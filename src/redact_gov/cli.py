@@ -17,8 +17,8 @@ from redact_gov.core.statutes import VIRGINIA_STATUTES, get_statute
 from redact_gov.pipeline import RedactionPipeline
 
 app = typer.Typer(
-    name="redactgov",
-    help="RedactGov: Sovereign, air-gapped on-device FOIA redaction engine powered by Google Gemma 4 E4B & PikePDF.",
+    name="aiblackmarker",
+    help="AI Blackmarker (RedactGov): Sovereign, air-gapped on-device FOIA redaction engine powered by Google Gemma 4 E4B & PikePDF.",
     add_completion=False,
 )
 console = Console()
@@ -221,6 +221,32 @@ def statutes() -> None:
         )
 
     console.print(table)
+
+
+@app.command()
+def worker(
+    idle_timeout: float = typer.Option(
+        180.0,
+        "--idle-timeout",
+        help="Seconds of inactivity before the ephemeral helper unloads Gemma 4 E4B and exits.",
+    ),
+) -> None:
+    """Run the ephemeral JSON-RPC stdio worker for the native macOS utility (DigUp pattern)."""
+    from redact_gov.worker import EphemeralRedactWorker
+
+    helper = EphemeralRedactWorker(idle_timeout=idle_timeout)
+    helper.serve_stdio()
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address for local review server"),
+    port: int = typer.Option(8000, "--port", help="Bind port for local review server"),
+) -> None:
+    """Launch the local FastAPI Human-in-the-Loop web server."""
+    import uvicorn
+
+    uvicorn.run("redact_gov.api.app:app", host=host, port=port, reload=False)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- 90-degree Top-Down macOS Squircle Surface -->
+    <linearGradient id="squircleSurface" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <!-- Subtle Top-Down Inner Bevel -->
+    <linearGradient id="squircleStroke" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.90"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.45"/>
+    </linearGradient>
+
+    <!-- Obsidian Blackmarker Ink -->
+    <linearGradient id="inkBar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#090D16"/>
+    </linearGradient>
+
+    <!-- 45-degree Floating Marker Barrel -->
+    <linearGradient id="markerBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="35%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#090D16"/>
+    </linearGradient>
+
+    <!-- Subtle Brand Accent Band (Electric Indigo-Blue) -->
+    <linearGradient id="brandBand" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+
+    <!-- Apple HIG 90-degree Top-Down Shadow -->
+    <filter id="higShadow" x="-15%" y="-15%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#000000" flood-opacity="0.32"/>
+    </filter>
+
+    <filter id="toolShadow" x="-20%" y="-20%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#090D16" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+
+  <!-- 1. macOS 824x824 Continuous Squircle (Document Surface) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185"
+        fill="url(#squircleSurface)"
+        stroke="url(#squircleStroke)"
+        stroke-width="6"
+        filter="url(#higShadow)"/>
+
+  <!-- 2. Minimalist Document Context Lines (Centered on 688px Keyline) -->
+  <rect x="224" y="276" width="320" height="36" rx="18" fill="#94A3B8" opacity="0.48"/>
+  <rect x="224" y="348" width="480" height="36" rx="18" fill="#94A3B8" opacity="0.48"/>
+
+  <!-- 3. The Iconic Blackmarker Strike (Single Bold Redaction Bar) -->
+  <rect x="212" y="454" width="576" height="116" rx="28" fill="url(#inkBar)"/>
+
+  <!-- Lower Context Line -->
+  <rect x="224" y="640" width="410" height="36" rx="18" fill="#94A3B8" opacity="0.48"/>
+  <rect x="224" y="712" width="260" height="36" rx="18" fill="#94A3B8" opacity="0.48"/>
+
+  <!-- 4. Apple HIG 45-Degree Floating Tool (Chisel-Tip Marker) -->
+  <g transform="translate(650, 480) rotate(-45)" filter="url(#toolShadow)">
+    <!-- Chisel Felt Tip touching the Redaction Bar -->
+    <path d="M -130 10 L -64 -26 L -64 34 L -130 34 Z" fill="#090D16"/>
+    <!-- Tapered Nozzle -->
+    <path d="M -64 -28 L -16 -44 L -16 44 L -64 34 Z" fill="#1E293B"/>
+    <!-- Minimalist Accent Ring -->
+    <rect x="-18" y="-46" width="22" height="92" rx="5" fill="url(#brandBand)"/>
+    <!-- Cylindrical Marker Body (Extends slightly toward top-right keyline) -->
+    <rect x="4" y="-52" width="340" height="104" rx="34" fill="url(#markerBody)"/>
+    <!-- Top-Down Specular Highlight along Marker Barrel -->
+    <rect x="26" y="-34" width="290" height="14" rx="7" fill="#FFFFFF" opacity="0.18"/>
+  </g>
+</svg>

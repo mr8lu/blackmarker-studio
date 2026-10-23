@@ -22,7 +22,7 @@ def test_ui_served():
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "RedactGov HITL Reviewer" in response.text
+    assert "AI Blackmarker" in response.text
 
 def test_upload_pdf(tmp_path, monkeypatch):
     import redact_gov.api.app as app_module

@@ -1,7 +1,7 @@
 [project]
 name = "redact-gov"
-version = "0.1.0"
-description = "Sovereign, air-gapped FOIA/VFOIA document redaction engine powered by on-device Google Gemma 4 E4B and surgical PikePDF stream sanitization."
+version = "0.3.0"
+description = "AI Blackmarker: Sovereign, air-gapped FOIA/VFOIA document redaction engine powered by on-device Google Gemma 4 E4B and surgical PikePDF stream sanitization."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -21,6 +21,8 @@ dependencies = [
 ]
 
 [project.scripts]
+aiblackmarker = "redact_gov.cli:app"
+ai-blackmarker = "redact_gov.cli:app"
 redactgov = "redact_gov.cli:app"
 redact-gov = "redact_gov.cli:app"
 

@@ -15,9 +15,9 @@ from redact_gov.core.statutes import list_statutes
 from redact_gov.pipeline import RedactionPipeline
 
 app = FastAPI(
-    title="RedactGov Sovereign Redaction API",
-    description="Local on-device API for air-gapped FOIA redaction and Virginia compliance.",
-    version="0.1.0",
+    title="AI Blackmarker Sovereign Redaction API",
+    description="Local on-device API for air-gapped FOIA redaction, manual Blackmarker drawing, and Virginia compliance.",
+    version="0.3.0",
 )
 
 app.add_middleware(

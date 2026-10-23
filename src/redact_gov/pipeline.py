@@ -13,7 +13,11 @@ from redact_gov.core.criteria import (
     RedactionCriteriaRegistry,
     ReleaseProfile,
 )
-from redact_gov.core.geometry import find_text_bounding_boxes, get_document_page_count
+from redact_gov.core.geometry import (
+    extract_words_in_bounding_box,
+    find_text_bounding_boxes,
+    get_document_page_count,
+)
 from redact_gov.core.models import BoundingBox, RedactionEntity, RedactionPlan, RedactionResult
 from redact_gov.core.normalizer import DocumentNormalizer, silence_parser_warnings
 from redact_gov.engines.contextual import ContextualGemmaEngine
@@ -53,6 +57,7 @@ class RedactionPipeline:
         normalize_imperfect: bool = True,
         coordinate_policy: Optional[str] = None,
         profile: Optional[ReleaseProfile] = None,
+        external_ocr_spans: Optional[List[dict]] = None,
     ) -> RedactionPlan:
         """Analyze PDF across all pages and generate a complete RedactionPlan with geometry.
 
@@ -67,6 +72,12 @@ class RedactionPipeline:
             assessor = ContextAssessor(registry=assessor_registry)
         else:
             assessor = self.context_assessor
+
+        ocr_by_page: dict[int, List[dict]] = {}
+        if external_ocr_spans:
+            for span in external_ocr_spans:
+                pg = int(span.get("page", 1))
+                ocr_by_page.setdefault(pg, []).append(span)
 
         # Step 0: Check and pre-normalize imperfect document if needed
         analysis_pdf = input_pdf
@@ -87,9 +98,20 @@ class RedactionPipeline:
                 pikepdf.open(analysis_pdf, attempt_recovery=True) as pike_doc,
             ):
                 for page_idx, page in enumerate(pdf.pages, start=1):
-                    page_text = page.extract_text(layout=False) or ""
+                    digital_text = page.extract_text(layout=False) or ""
+                    page_ocr_spans = ocr_by_page.get(page_idx, [])
+                    ocr_text = "\n".join(
+                        str(s.get("text", "")).strip()
+                        for s in page_ocr_spans
+                        if str(s.get("text", "")).strip()
+                    )
+                    page_text = (
+                        f"{digital_text}\n{ocr_text}".strip()
+                        if ocr_text and ocr_text not in digital_text
+                        else digital_text
+                    )
 
-                    # 1. Tier 1 Deterministic Fast Path on content stream
+                    # 1. Tier 1 Deterministic Fast Path on content stream + Vision OCR
                     raw_tier1 = (
                         self.deterministic_engine.scan_text(page_text, page_number=page_idx)
                         if page_text.strip()
@@ -117,7 +139,7 @@ class RedactionPipeline:
 
                     # 2. Tier 2 Contextual Cognitive Path / Multimodal Vision
                     if len(page_text.strip()) < 20:
-                        # Scanned or image-heavy page: use multimodal vision
+                        # Scanned or image-heavy page without OCR spans: use multimodal vision
                         try:
                             page_img = page.to_image(resolution=72).original
                             img_path = Path(f"/tmp/redact_gov_page_{page_idx}.png")
@@ -207,12 +229,31 @@ class RedactionPipeline:
                             seen_keys.add(key)
                             page_entities.append(e)
 
-                    # 4. Spatial Geometry Reconciliation (using active page_obj)
+                    # 4. Spatial Geometry Reconciliation (using active page_obj + Apple Vision OCR fallback)
                     for entity in page_entities:
                         if not entity.bounding_boxes:
                             bboxes = find_text_bounding_boxes(
                                 analysis_pdf, page_idx, entity.text, page_obj=page
                             )
+                            if not bboxes and page_ocr_spans:
+                                target_lower = entity.text.strip().lower()
+                                for span in page_ocr_spans:
+                                    span_text = str(span.get("text", "")).strip()
+                                    if span_text and (
+                                        target_lower in span_text.lower()
+                                        or span_text.lower() in target_lower
+                                    ):
+                                        bboxes.append(
+                                            BoundingBox(
+                                                page=page_idx,
+                                                x0=round(float(span["x0"]), 2),
+                                                y0=round(float(span["y0"]), 2),
+                                                x1=round(float(span["x1"]), 2),
+                                                y1=round(float(span["y1"]), 2),
+                                            )
+                                        )
+                                if bboxes and not entity.context_label:
+                                    entity.context_label = "Apple Vision Neural OCR"
                             entity.bounding_boxes = bboxes
 
                     all_entities.extend(page_entities)
@@ -240,6 +281,22 @@ class RedactionPipeline:
         """Execute surgical sanitization based on approved RedactionPlan."""
         silence_parser_warnings()
         start_time = time.time()
+
+        # Enrich any manual marquee redactions with underlying PDF text tokens so stream glyphs are excised
+        for entity in plan.entities:
+            if not entity.approved:
+                continue
+            is_manual = (
+                entity.category == "manual_redaction"
+                or entity.tier == "manual_blackmarker"
+                or entity.text.strip().startswith("[Manual")
+            )
+            if is_manual and entity.bounding_boxes:
+                discovered_words: List[str] = []
+                for box in entity.bounding_boxes:
+                    discovered_words.extend(extract_words_in_bounding_box(input_pdf, box))
+                if discovered_words and entity.text.strip().startswith("[Manual"):
+                    entity.text = " ".join(discovered_words)
 
         # Execute PikePDF stream excision & canvas burn-in
         success, applied_count = self.sanitizer.sanitize_document(
@@ -280,8 +337,9 @@ class RedactionPipeline:
         """Verify that redacted strings do not appear in output text on their targeted pages."""
         entities_by_page = {}
         for e in entities:
-            if e.approved and len(e.text.strip()) > 2:
-                entities_by_page.setdefault(e.page_number, []).append(e.text.strip())
+            txt = e.text.strip()
+            if e.approved and len(txt) > 2 and not txt.startswith("[Manual"):
+                entities_by_page.setdefault(e.page_number, []).append(txt)
 
         # Check 1: Extracted text verification via pdfplumber per page
         with pdfplumber.open(output_pdf) as pdf:

@@ -1,7 +1,7 @@
-# RedactGov: Project Execution & Commercialization Blueprint
+# AI Blackmarker (RedactGov): Project Execution & Commercialization Blueprint
 
-**Project Codename:** RedactGov  
-**Core Mission:** Sovereign, air-gapped FOIA/VFOIA document redaction and statutory compliance engine powered by on-device Small Language Models (Google Gemma 4 E4B) and surgical PDF stream sanitization.  
+**Product Name:** AI Blackmarker (Codename: RedactGov)  
+**Core Mission:** Sovereign, air-gapped FOIA/VFOIA document redaction and statutory compliance engine powered by on-device Small Language Models (Google Gemma 4 E4B), interactive Manual Blackmarker marquee drawing, and surgical PDF stream sanitization.  
 **Primary Target Sponsor:** Virginia Innovation Partnership Corporation (VIPC) - Commonwealth Commercialization Fund (CCF) Launch Grant ($50,000) & Virginia Venture Partners (VVP).
 
 ---
@@ -10,17 +10,17 @@
 
 Virginia local governments, school divisions, and municipal law enforcement agencies operate under a strict statutory mandate (Va. Code § 2.2-3700 et seq.) requiring public records release within five business days. Existing enterprise redaction suites carry prohibitive five-figure licensing hurdles and cloud data exfiltration risks. Conversely, manual redaction using rudimentary desktop tools invites catastrophic data leaks through incomplete layer sanitization (such as drawing black rectangles over text while leaving underlying text glyphs intact in the PDF byte stream).
 
-RedactGov bridges this gap with an air-gapped, zero-cloud desktop/server application. By uniting deterministic pattern matching, a locally hosted open-weight Google Gemma model (Google Gemma 4 E4B / 9B via llama.cpp with Apple Metal and CPU acceleration), and low-level PDF stream surgery via PikePDF, RedactGov automates 95% of pre-redaction chores. Crucially, it maps withheld information directly to Virginia statutory exemptions, generating legally binding audit logs in seconds without exposing Criminal Justice Information Services (CJIS) or FERPA-governed data to commercial cloud APIs.
+AI Blackmarker bridges this gap with an air-gapped, zero-cloud desktop/server application. By uniting deterministic pattern matching, a locally hosted open-weight Google Gemma model (Google Gemma 4 E4B / 9B via llama.cpp with Apple Metal and CPU acceleration), interactive Manual Blackmarker marquee drawing, and low-level PDF stream surgery via PikePDF, AI Blackmarker automates 95% of pre-redaction chores while empowering human reviewers to draw custom redactions that surgically excise underlying PDF glyphs. Crucially, it maps withheld information directly to Virginia statutory exemptions, generating legally binding audit logs in seconds without exposing Criminal Justice Information Services (CJIS) or FERPA-governed data to commercial cloud APIs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             RedactGov System Flow                           │
+│                           AI Blackmarker System Flow                        │
 ├─────────────────────┬─────────────────────────────────┬─────────────────────┤
-│   Ingest & Parse    │       Contextual Inference      │  Surgical Scrubbing │
+│   Ingest & Parse    │  AI + Manual Blackmarker Plan   │  Surgical Scrubbing │
 │                     │                                 │                     │
 │  Scanned / Digital  │  Deterministic Regex + Presidio │  PikePDF Content    │
 │  PDF Documents      │                +                │  Stream Deletion    │
-│         │           │      Quantized Google Gemma 4 E4B   │         +           │
+│         │           │  Gemma 4 E4B + Manual Marquee   │         +           │
 │         ▼           │                │                │  XMP Metadata Wipe  │
 │  Spatial Geometry   │                ▼                │         │           │
 │  Token Coordinates  │   Va. Code Exemption Classifier │         ▼           │

@@ -111,6 +111,50 @@ def find_text_bounding_boxes(
         return _search_page(pdf.pages[page_number - 1])
 
 
+def extract_words_in_bounding_box(
+    pdf_path: Path,
+    box: BoundingBox,
+    page_obj: Optional[pdfplumber.page.Page] = None,
+) -> List[str]:
+    """Return all word tokens on `box.page` whose spatial bounds overlap `box` (bottom-left PDF coords)."""
+    silence_parser_warnings()
+
+    def _collect_from_page(page: pdfplumber.page.Page) -> List[str]:
+        page_height = float(page.height)
+        box_top = page_height - float(box.y1)
+        box_bottom = page_height - float(box.y0)
+        box_x0 = float(box.x0)
+        box_x1 = float(box.x1)
+
+        words = page.extract_words() or []
+        matched_tokens: List[str] = []
+        for w in words:
+            wx0 = float(w.get("x0", 0.0))
+            wx1 = float(w.get("x1", 0.0))
+            wtop = float(w.get("top", 0.0))
+            wbottom = float(w.get("bottom", 0.0))
+            w_text = str(w.get("text", "")).strip()
+            if not w_text:
+                continue
+
+            overlap_x = max(0.0, min(box_x1, wx1) - max(box_x0, wx0))
+            overlap_y = max(0.0, min(box_bottom, wbottom) - max(box_top, wtop))
+            w_width = max(1.0, wx1 - wx0)
+            w_height = max(1.0, wbottom - wtop)
+
+            if (overlap_x / w_width) >= 0.30 and (overlap_y / w_height) >= 0.30:
+                matched_tokens.append(w_text)
+        return matched_tokens
+
+    if page_obj is not None:
+        return _collect_from_page(page_obj)
+
+    with pdfplumber.open(pdf_path) as pdf:
+        if box.page < 1 or box.page > len(pdf.pages):
+            return []
+        return _collect_from_page(pdf.pages[box.page - 1])
+
+
 def get_document_page_count(pdf_path: Path) -> int:
     """Return total number of pages in PDF."""
     silence_parser_warnings()

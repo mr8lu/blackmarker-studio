@@ -3,130 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RedactGov HITL Reviewer</title>
+    <title>AI Blackmarker - Virginia FOIA Redaction Studio</title>
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         :root {
-            --primary: #003366;
-            --primary-light: #004080;
-            --success: #28a745;
-            --danger: #dc3545;
-            --gray: #6c757d;
-            --bg-color: #f4f6f9;
+            --bg-dark: #0f1116;
+            --panel-bg: #171a21;
+            --border-color: #2c3240;
+            --accent: #0ea5e9;
+            --accent-hover: #0284c7;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
         }
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
             margin: 0;
             padding: 0;
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
-        header {
-            background-color: var(--primary);
-            color: white;
-            padding: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            width: 100%;
-        }
         .sidebar {
-            width: 350px;
-            background: white;
-            border-right: 1px solid #ddd;
+            width: 370px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
-            overflow-y: auto;
+            overflow: hidden;
         }
-        .main-content {
-            flex: 1;
+        header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
-        .upload-section, .doc-info, .actions {
-            padding: 15px;
-            border-bottom: 1px solid #ddd;
+        header img {
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+        }
+        header h2 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        header span {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: block;
+        }
+        .upload-section, .doc-info, .manual-bar, .actions {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
         }
         .entity-list {
             flex: 1;
             overflow-y: auto;
-            padding: 15px;
+            padding: 12px 16px;
         }
         .entity-card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 10px;
+            background: #1e232d;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
             cursor: pointer;
-            transition: box-shadow 0.2s;
+            transition: border-color 0.15s, background 0.15s;
         }
         .entity-card:hover {
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-color: var(--accent);
         }
-        .entity-card.approved { border-left: 4px solid var(--success); }
-        .entity-card.rejected { border-left: 4px solid var(--danger); }
-        
+        .entity-card.approved { border-left: 4px solid var(--danger); }
+        .entity-card.manual { border-left: 4px solid var(--accent); }
+        .entity-card.rejected { border-left: 4px solid #64748b; opacity: 0.72; }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .canvas-toolbar {
+            padding: 10px 18px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.85rem;
+        }
         .pdf-viewer-container {
             flex: 1;
             overflow: auto;
-            background: #e9ecef;
+            background: #0b0d11;
             display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 20px;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+            gap: 20px;
         }
         .pdf-page-wrapper {
             position: relative;
             background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+            user-select: none;
+        }
+        .pdf-page-wrapper.draw-mode {
+            cursor: crosshair;
         }
         .bbox {
             position: absolute;
             border: 2px solid;
-            background-color: rgba(0,0,0,0.1);
             cursor: pointer;
             pointer-events: auto;
+            border-radius: 2px;
         }
-        .bbox.approved { border-color: var(--success); background-color: rgba(40, 167, 69, 0.2); }
-        .bbox.rejected { border-color: var(--danger); background-color: rgba(220, 53, 69, 0.2); }
-        
-        button {
+        .bbox.approved {
+            border-color: #ef4444;
+            background-color: rgba(15, 23, 42, 0.55);
+        }
+        .bbox.manual {
+            border-color: var(--accent);
+            background-color: rgba(9, 13, 22, 0.65);
+        }
+        .bbox.rejected {
+            border-color: #94a3b8;
+            border-style: dashed;
+            background-color: rgba(100, 116, 139, 0.15);
+        }
+        .marquee-box {
+            position: absolute;
+            border: 2px dashed var(--accent);
+            background-color: rgba(14, 165, 233, 0.28);
+            pointer-events: none;
+        }
+        button, select {
             padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
+            border: 1px solid transparent;
+            border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 0.84rem;
             color: white;
+            background: #283040;
         }
-        .btn-primary { background: var(--primary); }
+        select {
+            background: #11141b;
+            border-color: var(--border-color);
+        }
+        .btn-primary { background: var(--accent); }
+        .btn-primary:hover { background: var(--accent-hover); }
         .btn-success { background: var(--success); }
         .btn-danger { background: var(--danger); }
-        .btn-secondary { background: var(--gray); }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary { background: #334155; }
+        .btn-toggle-active {
+            background: var(--accent);
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.35);
+        }
         .badge {
             display: inline-block;
-            padding: 3px 6px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            background: #eee;
-            color: #333;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: #283040;
+            color: #e2e8f0;
         }
         .loader {
             display: none;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary);
+            border: 3px solid #283040;
+            border-top: 3px solid var(--accent);
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
+            width: 18px;
+            height: 18px;
+            animation: spin 0.9s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -134,35 +192,55 @@
 <body>
     <div class="sidebar">
         <header>
-            <h2 style="margin:0; font-size:1.2rem;">RedactGov</h2>
+            <img src="/static/icon.png" alt="AI Blackmarker">
+            <div>
+                <h2>AI Blackmarker</h2>
+                <span>Va. Code § 2.2-3700 • Air-Gapped Studio</span>
+            </div>
         </header>
         <div class="upload-section">
             <input type="file" id="pdfUpload" accept="application/pdf" style="display:none">
-            <button class="btn-primary" style="width:100%" onclick="document.getElementById('pdfUpload').click()">Upload Document</button>
+            <button class="btn-primary" style="width:100%" onclick="document.getElementById('pdfUpload').click()">Open PDF Document...</button>
             <div id="uploadLoader" class="loader" style="margin: 10px auto;"></div>
         </div>
         <div class="doc-info" id="docInfo" style="display:none">
-            <h4 style="margin-top:0">Document Info</h4>
-            <p style="margin:5px 0; font-size:0.9em">ID: <span id="docId"></span></p>
-            <p style="margin:5px 0; font-size:0.9em">Pages: <span id="docPages"></span></p>
-            <p style="margin:5px 0; font-size:0.9em">Entities: <span id="docEntities"></span></p>
+            <div style="display:flex; justify-content:space-between; font-size:0.84rem;">
+                <span>Docket ID: <strong id="docId"></strong></span>
+                <span>Pages: <strong id="docPages"></strong></span>
+                <span>Redactions: <strong id="docEntities"></strong></span>
+            </div>
         </div>
-        <div class="actions" id="bulkActions" style="display:none; gap:5px;">
+        <div class="actions" id="bulkActions" style="display:none; gap:6px;">
             <button class="btn-success" onclick="toggleAll(true)" style="flex:1">Approve All</button>
-            <button class="btn-danger" onclick="toggleAll(false)" style="flex:1">Reject All</button>
+            <button class="btn-secondary" onclick="toggleAll(false)" style="flex:1">Clear All</button>
         </div>
         <div class="entity-list" id="entityList"></div>
-        <div class="actions" id="executeActions" style="display:none; flex-direction:column; gap:10px">
-            <button class="btn-primary" onclick="executeRedaction()" id="btnExecute">Execute Redaction</button>
+        <div class="actions" id="executeActions" style="display:none; flex-direction:column; gap:8px">
+            <button class="btn-success" onclick="executeRedaction()" id="btnExecute">Sanitize & Certify PDF</button>
             <div id="execLoader" class="loader" style="margin: 0 auto;"></div>
-            <a id="downloadSanitized" class="btn-success" style="display:none; text-align:center; text-decoration:none; padding:8px" target="_blank">Download PDF</a>
-            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px" target="_blank">Download Certificate</a>
+            <a id="downloadSanitized" class="btn-primary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Sanitized PDF</a>
+            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download FOIA Certificate</a>
         </div>
     </div>
-    
+
     <div class="main-content">
+        <div class="canvas-toolbar">
+            <button id="btnManualDraw" onclick="toggleManualDrawMode()">Manual Blackmarker: OFF</button>
+            <label for="manualStatute" style="color:var(--text-secondary)">Statute:</label>
+            <select id="manualStatute">
+                <option value="Va. Code § 2.2-3705.1(1)">§ 2.2-3705.1(1) • Personnel & Privacy</option>
+                <option value="Va. Code § 2.2-3808.1">§ 2.2-3808.1 • SSN & Account IDs</option>
+                <option value="Va. Code § 2.2-3706">§ 2.2-3706 • Law Enforcement & Victims</option>
+                <option value="Va. Code § 2.2-3705.7(2)">§ 2.2-3705.7(2) • Juvenile Identifiers</option>
+                <option value="Va. Code § 2.2-3705.3">§ 2.2-3705.3 • Administrative Investigation</option>
+                <option value="Va. Code § 2.2-3705.7(26)">§ 2.2-3705.7(26) • Critical Habitat / Species</option>
+            </select>
+            <span style="color:var(--text-secondary); margin-left:auto; font-size:0.78rem;">
+                Tip: Enable Manual Blackmarker (or hold Shift + Drag) on any page to draw a custom redaction box.
+            </span>
+        </div>
         <div class="pdf-viewer-container" id="pdfViewer">
-            <h3 style="color:#aaa; margin-top:20%">Upload a document to begin review</h3>
+            <h3 style="color:var(--text-secondary); margin-top:18%; font-weight:500;">Open a PDF document to review or draw manual Blackmarker redactions</h3>
         </div>
     </div>
 
@@ -173,7 +251,17 @@
         let currentPlan = null;
         let currentFileUrl = null;
         let pdfDoc = null;
-        let renderTask = null;
+        let manualDrawMode = false;
+
+        function toggleManualDrawMode() {
+            manualDrawMode = !manualDrawMode;
+            const btn = document.getElementById('btnManualDraw');
+            btn.innerText = manualDrawMode ? 'Manual Blackmarker: ON (Drag on PDF)' : 'Manual Blackmarker: OFF';
+            btn.classList.toggle('btn-toggle-active', manualDrawMode);
+            document.querySelectorAll('.pdf-page-wrapper').forEach(w => {
+                w.classList.toggle('draw-mode', manualDrawMode);
+            });
+        }
 
         const uploadInput = document.getElementById('pdfUpload');
         uploadInput.addEventListener('change', async (e) => {
@@ -194,15 +282,15 @@
                     currentDocId = data.doc_id;
                     currentPlan = data.plan;
                     currentFileUrl = URL.createObjectURL(file);
-                    
+
                     document.getElementById('docInfo').style.display = 'block';
                     document.getElementById('bulkActions').style.display = 'flex';
                     document.getElementById('executeActions').style.display = 'flex';
-                    
+
                     document.getElementById('docId').innerText = data.doc_id;
                     document.getElementById('docPages').innerText = data.total_pages;
-                    document.getElementById('docEntities').innerText = data.entities_detected;
-                    
+                    document.getElementById('docEntities').innerText = currentPlan.entities.length;
+
                     renderEntityList();
                     await loadPdf();
                 } else {
@@ -218,7 +306,7 @@
         async function loadPdf() {
             const viewer = document.getElementById('pdfViewer');
             viewer.innerHTML = '';
-            
+
             try {
                 pdfDoc = await pdfjsLib.getDocument(currentFileUrl).promise;
                 for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
@@ -226,17 +314,17 @@
                 }
                 drawBboxes();
             } catch (err) {
-                viewer.innerHTML = `<h3 style="color:red">Error loading PDF: ${err.message}</h3>`;
+                viewer.innerHTML = `<h3 style="color:#ef4444">Error loading PDF: ${err.message}</h3>`;
             }
         }
 
         async function renderPage(pageNum, container) {
             const page = await pdfDoc.getPage(pageNum);
-            const scale = 1.5;
+            const scale = 1.4;
             const viewport = page.getViewport({ scale });
 
             const wrapper = document.createElement('div');
-            wrapper.className = 'pdf-page-wrapper';
+            wrapper.className = 'pdf-page-wrapper' + (manualDrawMode ? ' draw-mode' : '');
             wrapper.style.width = viewport.width + 'px';
             wrapper.style.height = viewport.height + 'px';
             wrapper.id = `page-wrapper-${pageNum}`;
@@ -249,46 +337,137 @@
             wrapper.appendChild(canvas);
             container.appendChild(wrapper);
 
-            const renderContext = { canvasContext: ctx, viewport: viewport };
-            await page.render(renderContext).promise;
-            
-            // Store viewport data for bounding boxes
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
             wrapper.dataset.scale = scale;
+            wrapper.dataset.pageNum = pageNum;
             wrapper.dataset.pdfWidth = viewport.width / scale;
             wrapper.dataset.pdfHeight = viewport.height / scale;
+
+            attachManualMarqueeHandlers(wrapper, pageNum);
+        }
+
+        function attachManualMarqueeHandlers(wrapper, pageNum) {
+            let startX = null;
+            let startY = null;
+            let marqueeEl = null;
+
+            wrapper.addEventListener('mousedown', (e) => {
+                if (!manualDrawMode && !e.shiftKey) return;
+                if (e.target.classList.contains('bbox')) return;
+                const rect = wrapper.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+
+                marqueeEl = document.createElement('div');
+                marqueeEl.className = 'marquee-box';
+                marqueeEl.style.left = `${startX}px`;
+                marqueeEl.style.top = `${startY}px`;
+                marqueeEl.style.width = '0px';
+                marqueeEl.style.height = '0px';
+                wrapper.appendChild(marqueeEl);
+            });
+
+            wrapper.addEventListener('mousemove', (e) => {
+                if (startX === null || !marqueeEl) return;
+                const rect = wrapper.getBoundingClientRect();
+                const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+                const left = Math.min(startX, curX);
+                const top = Math.min(startY, curY);
+                const width = Math.abs(curX - startX);
+                const height = Math.abs(curY - startY);
+
+                marqueeEl.style.left = `${left}px`;
+                marqueeEl.style.top = `${top}px`;
+                marqueeEl.style.width = `${width}px`;
+                marqueeEl.style.height = `${height}px`;
+            });
+
+            wrapper.addEventListener('mouseup', async (e) => {
+                if (startX === null || !marqueeEl) return;
+                const rect = wrapper.getBoundingClientRect();
+                const endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                const endY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+                const leftPx = Math.min(startX, endX);
+                const topPx = Math.min(startY, endY);
+                const widthPx = Math.abs(endX - startX);
+                const heightPx = Math.abs(endY - startY);
+
+                marqueeEl.remove();
+                marqueeEl = null;
+                startX = null;
+                startY = null;
+
+                if (widthPx < 8 || heightPx < 8) return;
+
+                const scale = parseFloat(wrapper.dataset.scale);
+                const pdfHeight = parseFloat(wrapper.dataset.pdfHeight);
+
+                // Convert top-left browser pixels to bottom-left PDF points
+                const x0 = +(leftPx / scale).toFixed(2);
+                const x1 = +((leftPx + widthPx) / scale).toFixed(2);
+                const y1 = +(pdfHeight - (topPx / scale)).toFixed(2);
+                const y0 = +(pdfHeight - ((topPx + heightPx) / scale)).toFixed(2);
+
+                const statute = document.getElementById('manualStatute').value;
+                const manualEntity = {
+                    id: 'man_' + Math.random().toString(36).slice(2, 8),
+                    text: `[Manual Blackmarker (${Math.round(x1 - x0)}x${Math.round(y1 - y0)}pt)]`,
+                    category: 'manual_redaction',
+                    statute_code: statute,
+                    confidence: 1.0,
+                    page_number: pageNum,
+                    bounding_boxes: [{ page: pageNum, x0, y0, x1, y1 }],
+                    tier: 'manual_blackmarker',
+                    approved: true,
+                    context_label: 'User-drawn Manual Blackmarker'
+                };
+
+                currentPlan.entities.unshift(manualEntity);
+                document.getElementById('docEntities').innerText = currentPlan.entities.length;
+                await savePlan();
+                renderEntityList();
+                drawBboxes();
+            });
         }
 
         function drawBboxes() {
-            // Remove existing bboxes
             document.querySelectorAll('.bbox').forEach(el => el.remove());
-            
+            if (!currentPlan || !currentPlan.entities) return;
+
             currentPlan.entities.forEach((entity, index) => {
                 if (!entity.bounding_boxes) return;
+                const isManual = entity.tier === 'manual_blackmarker' || entity.category === 'manual_redaction';
                 entity.bounding_boxes.forEach(bbox => {
-                    const wrapper = document.getElementById(`page-wrapper-${bbox.page_num}`);
+                    const pageNum = bbox.page || bbox.page_num || entity.page_number;
+                    const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
                     if (!wrapper) return;
-                    
+
                     const scale = parseFloat(wrapper.dataset.scale);
-                    
+                    const pdfHeight = parseFloat(wrapper.dataset.pdfHeight);
+
                     const boxEl = document.createElement('div');
-                    boxEl.className = `bbox ${entity.approved ? 'approved' : 'rejected'}`;
-                    boxEl.title = `${entity.text} (${entity.category})
-Statute: ${entity.statute_code}`;
-                    
-                    // Coordinates conversion
-                    // PikePDF/pdfplumber usually use (x0, top, x1, bottom) where (0,0) is top-left
+                    boxEl.className = `bbox ${entity.approved ? (isManual ? 'manual' : 'approved') : 'rejected'}`;
+                    boxEl.title = `${entity.text} (${entity.category}) • ${entity.statute_code}`;
+
                     const left = bbox.x0 * scale;
-                    const top = bbox.top * scale;
+                    const top = (pdfHeight - bbox.y1) * scale;
                     const width = (bbox.x1 - bbox.x0) * scale;
-                    const height = (bbox.bottom - bbox.top) * scale;
-                    
+                    const height = (bbox.y1 - bbox.y0) * scale;
+
                     boxEl.style.left = `${left}px`;
                     boxEl.style.top = `${top}px`;
-                    boxEl.style.width = `${width}px`;
-                    boxEl.style.height = `${height}px`;
-                    
-                    boxEl.onclick = () => toggleEntity(index);
-                    
+                    boxEl.style.width = `${Math.max(8, width)}px`;
+                    boxEl.style.height = `${Math.max(8, height)}px`;
+
+                    boxEl.onclick = (ev) => {
+                        ev.stopPropagation();
+                        toggleEntity(index);
+                    };
+
                     wrapper.appendChild(boxEl);
                 });
             });
@@ -297,21 +476,35 @@ Statute: ${entity.statute_code}`;
         function renderEntityList() {
             const list = document.getElementById('entityList');
             list.innerHTML = '';
-            
+
             currentPlan.entities.forEach((entity, index) => {
+                const isManual = entity.tier === 'manual_blackmarker' || entity.category === 'manual_redaction';
                 const card = document.createElement('div');
-                card.className = `entity-card ${entity.approved ? 'approved' : 'rejected'}`;
+                card.className = `entity-card ${entity.approved ? (isManual ? 'manual' : 'approved') : 'rejected'}`;
                 card.onclick = () => toggleEntity(index);
                 card.innerHTML = `
-                    <div style="font-weight:bold">${entity.text}</div>
-                    <div style="font-size:0.85em; color:var(--gray)">${entity.category}</div>
-                    <div style="font-size:0.8em; margin-top:5px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; font-size:0.88rem;">${entity.text}</span>
+                        <button onclick="event.stopPropagation(); deleteEntity(${index});" style="padding:2px 6px; font-size:0.72rem; background:#334155;">✕</button>
+                    </div>
+                    <div style="font-size:0.76rem; color:var(--text-secondary); margin-top:3px;">
+                        p.${entity.page_number} • ${isManual ? 'MANUAL BLACKMARKER' : entity.category.toUpperCase()}
+                    </div>
+                    <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
                         <span class="badge">${entity.statute_code}</span>
-                        ${entity.confidence ? `<span class="badge" style="background:#d1ecf1">Conf: ${entity.confidence.toFixed(2)}</span>` : ''}
+                        <span class="badge">${Math.round((entity.confidence || 1) * 100)}%</span>
                     </div>
                 `;
                 list.appendChild(card);
             });
+        }
+
+        async function deleteEntity(index) {
+            currentPlan.entities.splice(index, 1);
+            document.getElementById('docEntities').innerText = currentPlan.entities.length;
+            await savePlan();
+            renderEntityList();
+            drawBboxes();
         }
 
         async function toggleEntity(index) {
@@ -345,7 +538,7 @@ Statute: ${entity.statute_code}`;
             document.getElementById('btnExecute').disabled = true;
             document.getElementById('downloadSanitized').style.display = 'none';
             document.getElementById('downloadCert').style.display = 'none';
-            
+
             try {
                 const response = await fetch(`/api/documents/${currentDocId}/execute`, { method: 'POST' });
                 if (response.ok) {
