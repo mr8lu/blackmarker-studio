@@ -57,9 +57,40 @@ public final class CaseIndexStore: @unchecked Sendable {
         );
         CREATE INDEX IF NOT EXISTS idx_docket_statute ON docket_redactions(statute_code);
         CREATE INDEX IF NOT EXISTS idx_docket_doc ON docket_redactions(document_name);
-        UPDATE docket_redactions SET entity_text = '[REDACTED]' WHERE entity_text != '[REDACTED]';
+        UPDATE docket_redactions
+        SET entity_text = '[REDACTED]', category = 'redacted', statute_code = ''
+        WHERE entity_text != '[REDACTED]' OR statute_code != '';
         """
         sqlite3_exec(db, schemaSQL, nil, nil, nil)
+        pruneMissingFilesLocked()
+    }
+
+    private func pruneMissingFilesLocked() {
+        guard let db else { return }
+        let querySQL = "SELECT DISTINCT output_path FROM docket_redactions;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, querySQL, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+
+        let fm = FileManager.default
+        var missingPaths: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let outPath = Self.columnText(stmt, 0)
+            if outPath.isEmpty || !fm.fileExists(atPath: outPath) {
+                missingPaths.append(outPath)
+            }
+        }
+
+        let deleteSQL = "DELETE FROM docket_redactions WHERE output_path = ?;"
+        let sqlTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for path in missingPaths {
+            var delStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, deleteSQL, -1, &delStmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(delStmt, 1, path, -1, sqlTransient)
+                sqlite3_step(delStmt)
+            }
+            sqlite3_finalize(delStmt)
+        }
     }
 
     public func recordRedactionRun(
@@ -100,8 +131,8 @@ public final class CaseIndexStore: @unchecked Sendable {
             }
             // Never persist raw sensitive PII/PHI/PPI text in the docket history store
             sqlite3_bind_text(stmt, 4, "[REDACTED]", -1, sqlTransient)
-            sqlite3_bind_text(stmt, 5, entity.category, -1, sqlTransient)
-            sqlite3_bind_text(stmt, 6, entity.statuteCode, -1, sqlTransient)
+            sqlite3_bind_text(stmt, 5, "redacted", -1, sqlTransient)
+            sqlite3_bind_text(stmt, 6, "", -1, sqlTransient)
             sqlite3_bind_int(stmt, 7, Int32(entity.pageNumber))
             sqlite3_bind_int(stmt, 8, result.verificationPassed ? 1 : 0)
             sqlite3_bind_text(stmt, 9, now, -1, sqlTransient)
@@ -114,6 +145,8 @@ public final class CaseIndexStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard let db else { return [] }
+
+        pruneMissingFilesLocked()
 
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let sql: String

@@ -104,6 +104,7 @@ public final class AppViewModel: ObservableObject {
     @Published public var isInspectorVisible: Bool = true
     @Published public var isManualDrawMode: Bool = false
     @Published public var manualStatute: ManualStatuteOption = .federalFoiaPrivacy
+    @Published public var includeCertificate: Bool = false
     @Published public var certificatePreset: CertificatePresetChoice = .genericCompliance
     @Published public var certificateConfig: CertificateConfigPayload = CertificatePresetChoice.genericCompliance.defaultConfig
     @Published public var isCertificateSheetPresented: Bool = false
@@ -369,7 +370,9 @@ public final class AppViewModel: ObservableObject {
         isBusy = true
         errorMessage = nil
         workerState = .spawning
-        statusMessage = "Executing PikePDF content stream surgery & issuing compliance certificate..."
+        statusMessage = includeCertificate
+            ? "Redacting PDF & generating compliance certificate..."
+            : "Redacting PDF..."
 
         let outDir = WorkspaceResolver.resolveOutputDirectory(
             for: pdfURL,
@@ -378,7 +381,9 @@ public final class AppViewModel: ObservableObject {
 
         let stem = pdfURL.deletingPathExtension().lastPathComponent
         let outputURL = outDir.appendingPathComponent("\(stem)_sanitized.pdf")
-        let certURL = outDir.appendingPathComponent("\(stem)_certificate.pdf")
+        let certURL: URL? = includeCertificate
+            ? outDir.appendingPathComponent("\(stem)_certificate.pdf")
+            : nil
 
         do {
             let result = try await workerClient.executePlan(
@@ -386,7 +391,7 @@ public final class AppViewModel: ObservableObject {
                 plan: plan,
                 outputURL: outputURL,
                 certificateURL: certURL,
-                certificateConfig: certificateConfig,
+                certificateConfig: includeCertificate ? certificateConfig : nil,
                 repair: autoRepairImperfect
             )
             lastResult = result
@@ -395,15 +400,52 @@ public final class AppViewModel: ObservableObject {
             refreshDocketSearch()
 
             if result.verificationPassed {
-                statusMessage = "Sanitized \(result.redactedCount) items in \(String(format: "%.2f", result.executionTimeSeconds))s - Zero residual bytes verified."
+                statusMessage = "Redacted \(result.redactedCount) items in \(String(format: "%.2f", result.executionTimeSeconds))s - Zero residual bytes verified."
                 previewMode = .sanitizedOutput
             } else {
-                statusMessage = "Sanitization finished with verification warning. Inspect output manually."
+                statusMessage = "Redaction finished with verification warning. Inspect output manually."
             }
         } catch {
             workerState = .error
             errorMessage = error.localizedDescription
-            statusMessage = "Sanitization error: \(error.localizedDescription)"
+            statusMessage = "Redaction error: \(error.localizedDescription)"
+        }
+
+        isBusy = false
+    }
+
+    public func generateCertificateNow() async {
+        guard let pdfURL = selectedPDFURL, let plan = currentPlan else { return }
+        isBusy = true
+        errorMessage = nil
+        workerState = .spawning
+        statusMessage = "Generating optional compliance certificate..."
+
+        let outDir = WorkspaceResolver.resolveOutputDirectory(
+            for: pdfURL,
+            workspaceRoot: workspaceRoot
+        )
+        let stem = pdfURL.deletingPathExtension().lastPathComponent
+        let certURL = outDir.appendingPathComponent("\(stem)_certificate.pdf")
+
+        do {
+            let certPath = try await workerClient.generateCertificate(
+                pdfURL: pdfURL,
+                plan: plan,
+                certificateURL: certURL,
+                certificateConfig: certificateConfig
+            )
+            workerState = .activeReady
+            if var existing = lastResult {
+                existing.certificatePath = certPath
+                lastResult = existing
+            }
+            previewMode = .foiaCertificate
+            statusMessage = "Compliance certificate generated."
+        } catch {
+            workerState = .error
+            errorMessage = error.localizedDescription
+            statusMessage = "Certificate error: \(error.localizedDescription)"
         }
 
         isBusy = false
@@ -428,7 +470,9 @@ public final class AppViewModel: ObservableObject {
         )
         let stem = pdfURL.deletingPathExtension().lastPathComponent
         let outputURL = outDir.appendingPathComponent("\(stem)_sanitized.pdf")
-        let certURL = outDir.appendingPathComponent("\(stem)_certificate.pdf")
+        let certURL: URL? = includeCertificate
+            ? outDir.appendingPathComponent("\(stem)_certificate.pdf")
+            : nil
 
         do {
             let response = try await workerClient.quickRedact(
@@ -438,7 +482,7 @@ public final class AppViewModel: ObservableObject {
                 profile: releaseProfile,
                 coordinatePolicy: coordinatePolicy,
                 enabledDomains: enabledDomainStrings,
-                certificateConfig: certificateConfig,
+                certificateConfig: includeCertificate ? certificateConfig : nil,
                 repair: autoRepairImperfect,
                 visionSpans: extractedSpans
             )
@@ -449,7 +493,7 @@ public final class AppViewModel: ObservableObject {
             indexStore.recordRedactionRun(plan: response.plan, result: response.result)
             refreshDocketSearch()
             previewMode = .sanitizedOutput
-            statusMessage = "Quick Scrub complete: \(response.result.redactedCount) redactions certified."
+            statusMessage = "Quick Scrub complete: \(response.result.redactedCount) items redacted."
         } catch {
             workerState = .error
             errorMessage = error.localizedDescription

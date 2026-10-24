@@ -198,7 +198,7 @@ public actor WorkerClient {
     public func quickRedact(
         pdfURL: URL,
         outputURL: URL,
-        certificateURL: URL,
+        certificateURL: URL? = nil,
         profile: ReleaseProfileChoice,
         coordinatePolicy: CoordinatePolicyChoice,
         enabledDomains: [String] = ["PII", "PHI", "PPI"],
@@ -219,13 +219,15 @@ public actor WorkerClient {
         var params: [String: Any] = [
             "input_pdf": pdfURL.path,
             "output_pdf": outputURL.path,
-            "certificate_pdf": certificateURL.path,
             "profile": profile.rawValue,
             "coordinate_policy": coordinatePolicy.rawValue,
             "enabled_domains": enabledDomains,
             "repair": repair,
             "vision_ocr_spans": encodedSpans
         ]
+        if let certificateURL {
+            params["certificate_pdf"] = certificateURL.path
+        }
         if let certificateConfig,
            let certData = try? JSONEncoder().encode(certificateConfig),
            let certObj = try? JSONSerialization.jsonObject(with: certData) {
@@ -233,6 +235,32 @@ public actor WorkerClient {
         }
         let data = try await sendRequest(method: "quick_redact", params: params)
         return try JSONDecoder().decode(QuickRedactResponse.self, from: data)
+    }
+
+    public func generateCertificate(
+        pdfURL: URL,
+        plan: RedactionPlanPayload,
+        certificateURL: URL,
+        certificateConfig: CertificateConfigPayload? = nil
+    ) async throws -> String {
+        let planData = try JSONEncoder().encode(plan)
+        let planObject = try JSONSerialization.jsonObject(with: planData)
+        var params: [String: Any] = [
+            "input_pdf": pdfURL.path,
+            "certificate_pdf": certificateURL.path,
+            "plan": planObject
+        ]
+        if let certificateConfig,
+           let certData = try? JSONEncoder().encode(certificateConfig),
+           let certObj = try? JSONSerialization.jsonObject(with: certData) {
+            params["certificate_config"] = certObj
+        }
+        let data = try await sendRequest(method: "generate_certificate", params: params)
+        if let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let path = dict["certificate_path"] as? String {
+            return path
+        }
+        return certificateURL.path
     }
 
     public func suspendWorker() async {

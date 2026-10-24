@@ -21,7 +21,8 @@ struct RedactGovMacApp: App {
 
         Task.detached {
             do {
-                // 1. Verify SQLite CaseIndexStore
+                // 1. Verify SQLite CaseIndexStore (and migrate/prune default store)
+                _ = CaseIndexStore()
                 let tempDir = FileManager.default.temporaryDirectory
                     .appendingPathComponent(UUID().uuidString, isDirectory: true)
                 try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -386,21 +387,24 @@ struct SovereignStudioView: View {
                 }
 
                 Button {
-                    viewModel.isCertificateSheetPresented = true
-                } label: {
-                    Label("Certificate Template", systemImage: "checkmark.seal.text.page")
-                }
-                .help("Customize the Redaction & Compliance Certificate template (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, SOC 2)")
-
-                Button {
                     Task { await viewModel.executeCurrentPlan() }
                 } label: {
-                    Label("Sanitize & Certify", systemImage: "checkmark.shield.fill")
+                    Label(
+                        viewModel.includeCertificate ? "Redact & Certify" : "Redact PDF",
+                        systemImage: "checkmark.shield.fill"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.14, green: 0.68, blue: 0.44))
                 .disabled(viewModel.currentPlan == nil || viewModel.isBusy)
-                .help("Execute PikePDF stream surgery and issue Compliance Redaction Certificate")
+                .help("Redact the PDF now (certificate generation is optional)")
+
+                Button {
+                    viewModel.isCertificateSheetPresented = true
+                } label: {
+                    Label("Certificate Options", systemImage: "checkmark.seal.text.page")
+                }
+                .help("Optional: configure or generate a compliance certificate after redacting")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -562,26 +566,34 @@ struct StudioSidebarView: View {
 
                         Divider().overlay(Color(white: 0.22))
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Certificate Template")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color(white: 0.85))
-                                Spacer()
-                                Button("Customize...") {
-                                    viewModel.isCertificateSheetPresented = true
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle(isOn: $viewModel.includeCertificate) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("Include Certificate (Optional)")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                    Text("Redact first; create audit report only when needed")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color(white: 0.65))
                                 }
-                                .buttonStyle(.link)
-                                .font(.system(size: 11, weight: .semibold))
                             }
-                            Text(viewModel.certificateConfig.certificateTitle)
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color(red: 0.48, green: 0.84, blue: 1.0))
-                                .lineLimit(1)
-                            Text(viewModel.certificateConfig.agencyName)
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color(white: 0.68))
-                                .lineLimit(1)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+
+                            if viewModel.includeCertificate {
+                                HStack {
+                                    Text(viewModel.certificateConfig.certificateTitle)
+                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(Color(red: 0.48, green: 0.84, blue: 1.0))
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Button("Customize...") {
+                                        viewModel.isCertificateSheetPresented = true
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.system(size: 11, weight: .semibold))
+                                }
+                            }
                         }
 
                         Divider().overlay(Color(white: 0.22))
@@ -953,15 +965,23 @@ struct StudioCenterCanvasView: View {
                         }
                     )
                 } else if viewModel.selectedPDFURL != nil && viewModel.previewMode != .annotatedSource {
-                    // User selected "Sanitized PDF" or "FOIA Certificate" before running Sanitize & Certify
+                    // User selected "Sanitized PDF" or "Certificate" tab before it was generated
                     VStack(spacing: 14) {
                         Image(systemName: viewModel.previewMode == .sanitizedOutput ? "lock.doc" : "checkmark.seal.text.page")
                             .font(.system(size: 44))
                             .foregroundStyle(Color(red: 0.45, green: 0.78, blue: 1.0))
-                        Text("\(viewModel.previewMode.rawValue) Not Generated Yet")
+                        Text(
+                            viewModel.previewMode == .foiaCertificate && viewModel.hasSanitizedOutput
+                                ? "Optional Certificate Not Created Yet"
+                                : "\(viewModel.previewMode.rawValue) Not Ready Yet"
+                        )
                             .font(.title3.weight(.bold))
                             .foregroundStyle(.white)
-                        Text("Review the detected statutory exemptions on the right, then click \"Sanitize & Certify PDF\" to execute PikePDF stream surgery and generate the certificate.")
+                        Text(
+                            viewModel.previewMode == .foiaCertificate && viewModel.hasSanitizedOutput
+                                ? "Your PDF is already redacted. If you also need a compliance certificate for your records, click below to create it."
+                                : "Review the highlighted items on the right, then click \"Redact PDF\" to remove sensitive information."
+                        )
                             .font(.callout)
                             .foregroundStyle(Color(white: 0.75))
                             .multilineTextAlignment(.center)
@@ -972,14 +992,30 @@ struct StudioCenterCanvasView: View {
                             }
                             .buttonStyle(.bordered)
 
-                            Button {
-                                Task { await viewModel.executeCurrentPlan() }
-                            } label: {
-                                Label("Sanitize & Certify Now", systemImage: "checkmark.shield.fill")
+                            if viewModel.previewMode == .foiaCertificate && viewModel.hasSanitizedOutput {
+                                Button("Customize...") {
+                                    viewModel.isCertificateSheetPresented = true
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button {
+                                    Task { await viewModel.generateCertificateNow() }
+                                } label: {
+                                    Label("Generate Certificate", systemImage: "checkmark.seal.text.page.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color(red: 0.18, green: 0.52, blue: 0.90))
+                                .disabled(viewModel.isBusy)
+                            } else {
+                                Button {
+                                    Task { await viewModel.executeCurrentPlan() }
+                                } label: {
+                                    Label("Redact PDF Now", systemImage: "checkmark.shield.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color(red: 0.14, green: 0.68, blue: 0.44))
+                                .disabled(viewModel.currentPlan == nil || viewModel.isBusy)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color(red: 0.14, green: 0.68, blue: 0.44))
-                            .disabled(viewModel.currentPlan == nil || viewModel.isBusy)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1162,7 +1198,11 @@ struct StudioInspectorView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.shield.fill")
                             .font(.system(size: 14, weight: .bold))
-                        Text("Sanitize & Certify PDF (\(approvedCount) items)")
+                        Text(
+                            viewModel.includeCertificate
+                                ? "Redact & Certify PDF (\(approvedCount) items)"
+                                : "Redact PDF (\(approvedCount) items)"
+                        )
                             .font(.system(size: 13, weight: .bold))
                         Spacer()
                         Image(systemName: "arrow.right.circle.fill")
@@ -1212,14 +1252,26 @@ struct StudioInspectorView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
 
-                            Button {
-                                viewModel.previewMode = .foiaCertificate
-                            } label: {
-                                Label("Certificate", systemImage: "checkmark.seal.text.page.fill")
-                                    .font(.system(size: 11, weight: .semibold))
+                            if viewModel.hasCertificateOutput {
+                                Button {
+                                    viewModel.previewMode = .foiaCertificate
+                                } label: {
+                                    Label("Certificate", systemImage: "checkmark.seal.text.page.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            } else {
+                                Button {
+                                    Task { await viewModel.generateCertificateNow() }
+                                } label: {
+                                    Label("Add Certificate", systemImage: "checkmark.seal.text.page")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(viewModel.isBusy)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
 
                             Spacer()
 

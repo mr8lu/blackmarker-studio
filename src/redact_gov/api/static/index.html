@@ -346,10 +346,14 @@
         <div class="entity-list" id="entityList"></div>
 
         <div class="actions" id="executeActions" style="display:none; flex-direction:column; gap:8px">
-            <button class="btn-success" onclick="executeRedaction()" id="btnExecute">Sanitize & Certify PDF</button>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;">
+                <input type="checkbox" id="includeCertCheckbox">
+                Include Compliance Certificate (Optional)
+            </label>
+            <button class="btn-success" onclick="executeRedaction()" id="btnExecute">Redact PDF</button>
             <div id="execLoader" class="loader" style="margin: 0 auto;"></div>
-            <a id="downloadSanitized" class="btn-primary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Sanitized PDF</a>
-            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Compliance Certificate</a>
+            <a id="downloadSanitized" class="btn-primary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Download Redacted PDF</a>
+            <a id="downloadCert" class="btn-secondary" style="display:none; text-align:center; text-decoration:none; padding:8px; border-radius:6px; color:white; font-weight:600;" target="_blank">Generate &amp; Download Certificate (Optional)</a>
         </div>
     </div>
 
@@ -868,7 +872,11 @@
             document.getElementById('downloadCert').style.display = 'none';
 
             try {
-                const payload = activeCertConfig ? { certificate_config: activeCertConfig } : {};
+                const includeCert = Boolean(document.getElementById('includeCertCheckbox')?.checked);
+                const payload = {
+                    include_certificate: includeCert,
+                    ...(activeCertConfig ? { certificate_config: activeCertConfig } : {})
+                };
                 const response = await fetch(`/api/documents/${currentDocId}/execute`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

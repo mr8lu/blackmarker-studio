@@ -53,6 +53,7 @@ class ReplanRequest(BaseModel):
 
 
 class ExecuteRequest(BaseModel):
+    include_certificate: bool = False
     certificate_config: Optional[CertificateConfig] = None
     agency_name: Optional[str] = None
     reviewer_name: Optional[str] = None
@@ -196,7 +197,12 @@ def execute_redaction(
     input_path = DOC_STORE[doc_id]
     plan = PLAN_STORE[doc_id]
     output_path = settings.OUTPUT_DIR / f"sanitized_{input_path.name}"
-    cert_path = settings.OUTPUT_DIR / f"certificate_{input_path.stem}.pdf"
+    include_cert = bool(req.include_certificate) if req else False
+    cert_path = (
+        settings.OUTPUT_DIR / f"certificate_{input_path.stem}.pdf"
+        if include_cert
+        else None
+    )
 
     cert_cfg = (
         req.certificate_config
@@ -236,6 +242,24 @@ def download_certificate_pdf(doc_id: str):
 
     input_path = DOC_STORE[doc_id]
     cert_path = settings.OUTPUT_DIR / f"certificate_{input_path.stem}.pdf"
+    if not cert_path.is_file() and doc_id in PLAN_STORE:
+        cert_cfg = CERT_CONFIG_STORE.get("default")
+        if hasattr(pipeline, "certificate_generator"):
+            pipeline.certificate_generator.generate_certificate(
+                document_name=input_path.name,
+                entities=PLAN_STORE[doc_id].entities,
+                output_path=cert_path,
+                certificate_config=cert_cfg,
+            )
+        else:
+            output_path = settings.OUTPUT_DIR / f"sanitized_{input_path.name}"
+            pipeline.execute_plan(
+                input_pdf=input_path,
+                plan=PLAN_STORE[doc_id],
+                output_pdf=output_path,
+                certificate_pdf=cert_path,
+                certificate_config=cert_cfg,
+            )
     if not cert_path.is_file():
         raise HTTPException(status_code=404, detail="Certificate PDF not yet generated.")
 

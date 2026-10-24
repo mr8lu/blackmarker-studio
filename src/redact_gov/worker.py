@@ -190,14 +190,11 @@ class EphemeralRedactWorker:
                     ),
                     pdf_path,
                 )
-                cert_pdf = _ensure_writable_output_path(
-                    Path(
-                        params.get(
-                            "certificate_pdf",
-                            str(pdf_path.with_name(f"{pdf_path.stem}_certificate.pdf")),
-                        )
-                    ),
-                    pdf_path,
+                cert_pdf_raw = params.get("certificate_pdf")
+                cert_pdf = (
+                    _ensure_writable_output_path(Path(cert_pdf_raw), pdf_path)
+                    if cert_pdf_raw
+                    else None
                 )
                 profile = _resolve_profile(params.get("profile"))
                 coord_policy = params.get("coordinate_policy") or (
@@ -241,6 +238,26 @@ class EphemeralRedactWorker:
                     "plan": plan.model_dump(),
                     "result": exec_result.model_dump(),
                 }
+            elif method == "generate_certificate":
+                pdf_path = Path(params["input_pdf"]).expanduser().resolve()
+                cert_pdf = _ensure_writable_output_path(
+                    Path(params["certificate_pdf"]), pdf_path
+                )
+                plan = RedactionPlan.model_validate(params["plan"])
+                cert_config = params.get("certificate_config")
+                agency_name = params.get("agency_name")
+                reviewer_name = params.get("reviewer_name")
+
+                pipeline = self._get_pipeline()
+                pipeline.certificate_generator.generate_certificate(
+                    document_name=pdf_path.name,
+                    entities=plan.entities,
+                    output_path=cert_pdf,
+                    reviewer_name=reviewer_name,
+                    agency_name=agency_name,
+                    certificate_config=cert_config,
+                )
+                result = {"certificate_path": str(cert_pdf)}
             elif method == "unload":
                 self._pipeline = None
                 result = {"status": "unloaded"}

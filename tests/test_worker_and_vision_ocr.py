@@ -275,3 +275,59 @@ def test_native_macos_bundle_self_test() -> None:
     assert res.returncode == 0, f"Self-test failed with cwd='/': {res.stderr}"
     assert "REDACTGOV_NATIVE_SELFTEST_OK" in res.stdout
 
+
+def test_file_history_ui_does_not_expose_sensitive_entity_text() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    app_swift = (repo_root / "Sources" / "RedactGovApp" / "RedactGovApp.swift").read_text(
+        encoding="utf-8"
+    )
+    store_swift = (repo_root / "Sources" / "RedactGovKit" / "CaseIndexStore.swift").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'SidebarCard(title: "FILE HISTORY"' in app_swift
+    assert 'SidebarCard(title: "FOIA DOCKET HISTORY"' not in app_swift
+    assert "entry.entityText" not in app_swift.split('SidebarCard(title: "FILE HISTORY"')[1]
+    assert "fm.fileExists(atPath: outPath)" in store_swift
+    assert 'sqlite3_bind_text(stmt, 4, "[REDACTED]"' in store_swift
+
+
+def test_redact_first_optional_certificate_second(tmp_path: Path) -> None:
+    pdf_path = _create_sample_pdf(tmp_path / "redact_first.pdf")
+    out_pdf = tmp_path / "redact_first_sanitized.pdf"
+    cert_pdf = tmp_path / "redact_first_certificate.pdf"
+
+    worker = EphemeralRedactWorker(idle_timeout=30.0)
+    quick_res = worker.handle_request(
+        {
+            "id": 301,
+            "method": "quick_redact",
+            "params": {
+                "input_pdf": str(pdf_path),
+                "output_pdf": str(out_pdf),
+                "profile": "public-foia",
+            },
+        }
+    )
+    assert quick_res["ok"] is True
+    assert out_pdf.exists()
+    assert not cert_pdf.exists()
+    assert quick_res["result"]["result"]["certificate_path"] is None
+
+    # Step 2: Generate optional certificate on demand
+    cert_res = worker.handle_request(
+        {
+            "id": 302,
+            "method": "generate_certificate",
+            "params": {
+                "input_pdf": str(pdf_path),
+                "certificate_pdf": str(cert_pdf),
+                "plan": quick_res["result"]["plan"],
+            },
+        }
+    )
+    assert cert_res["ok"] is True
+    assert cert_pdf.exists()
+
+
+

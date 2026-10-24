@@ -114,7 +114,8 @@ def test_execute_and_download(tmp_path, monkeypatch):
     class MockPipeline:
         def execute_plan(self, input_pdf, plan, output_pdf, certificate_pdf, **kwargs):
             output_pdf.write_bytes(b"%PDF-1.4 output")
-            certificate_pdf.write_bytes(b"%PDF-1.4 cert")
+            if certificate_pdf is not None:
+                certificate_pdf.write_bytes(b"%PDF-1.4 cert")
             return {"status": "success"}
 
     monkeypatch.setattr(app_module, "pipeline", MockPipeline())
