@@ -84,14 +84,14 @@ public final class AppViewModel: ObservableObject {
     @Published public var currentPlan: RedactionPlanPayload?
     @Published public var lastResult: RedactionResultPayload?
     @Published public var selectedEntityID: String?
-    @Published public var releaseProfile: ReleaseProfileChoice = .publicFoia
+    @Published public var releaseProfile: ReleaseProfileChoice = .strictPrivacy
     @Published public var activeDomains: Set<DataDomainChoice> = [.pii, .phi, .ppi]
     @Published public var coordinatePolicy: CoordinatePolicyChoice = .all
     @Published public var autoRepairImperfect: Bool = true
     @Published public var useAppleVisionOCR: Bool = true
     @Published public var workerState: WorkerState = .idleUnloaded
     @Published public var isBusy: Bool = false
-    @Published public var statusMessage: String = "Ready - Ephemeral worker dormant (0 MB VRAM)"
+    @Published public var statusMessage: String = "Ready - Drop or open a PDF to begin"
     @Published public var errorMessage: String?
     @Published public var previewMode: PreviewDocumentMode = .annotatedSource
     @Published public var docketSearchQuery: String = ""
@@ -102,7 +102,7 @@ public final class AppViewModel: ObservableObject {
     @Published public var visionSpanCount: Int = 0
     @Published public var isDropTargeted: Bool = false
     @Published public var isInspectorVisible: Bool = true
-    @Published public var isManualDrawMode: Bool = false
+    @Published public var isManualDrawMode: Bool = true
     @Published public var manualStatute: ManualStatuteOption = .federalFoiaPrivacy
     @Published public var includeCertificate: Bool = false
     @Published public var certificatePreset: CertificatePresetChoice = .genericCompliance
@@ -345,7 +345,7 @@ public final class AppViewModel: ObservableObject {
             pageNumber: page,
             boundingBoxes: [bbox],
             tier: "manual_blackmarker",
-            contextLabel: "Manual Blackmarker (\(manualStatute.displayLabel))",
+            contextLabel: "Manual Blackmarker",
             approved: true
         )
 
@@ -362,7 +362,7 @@ public final class AppViewModel: ObservableObject {
         }
 
         selectedEntityID = manualItem.id
-        statusMessage = "Added manual Blackmarker redaction on page \(page) (\(manualStatute.rawValue))."
+        statusMessage = "Added manual Blackmarker box on page \(page)."
     }
 
     public func deleteEntity(id: String) {

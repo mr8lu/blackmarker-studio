@@ -43,49 +43,19 @@ public final class BlackmarkerPDFView: PDFView {
 
     override public func resetCursorRects() {
         super.resetCursorRects()
-        if isManualDrawMode {
-            addCursorRect(bounds, cursor: .crosshair)
-        }
+        addCursorRect(bounds, cursor: .crosshair)
     }
 
     override public func mouseDown(with event: NSEvent) {
         let viewPoint = convert(event.locationInWindow, from: nil)
-        let shiftHeld = event.modifierFlags.contains(.shift)
-
-        if isManualDrawMode || shiftHeld {
-            guard let page = page(for: viewPoint, nearest: true) else {
-                super.mouseDown(with: event)
-                return
-            }
-            dragStartViewPoint = viewPoint
-            dragCurrentViewPoint = viewPoint
-            dragTargetPage = page
-            updateMarqueeLayer()
+        guard let page = page(for: viewPoint, nearest: true) else {
+            super.mouseDown(with: event)
             return
         }
-
-        // Check if click landed on an existing redaction entity box
-        if let page = page(for: viewPoint, nearest: false),
-           let doc = document {
-            let pagePoint = convert(viewPoint, to: page)
-            let pageNumber = doc.index(for: page) + 1
-            for entity in entities where entity.pageNumber == pageNumber {
-                for bbox in entity.boundingBoxes {
-                    let rect = CGRect(
-                        x: bbox.x0 - 3.0,
-                        y: bbox.y0 - 3.0,
-                        width: max(8.0, bbox.width + 6.0),
-                        height: max(8.0, bbox.height + 6.0)
-                    )
-                    if rect.contains(pagePoint) {
-                        onSelectEntity?(entity.id)
-                        return
-                    }
-                }
-            }
-        }
-
-        super.mouseDown(with: event)
+        dragStartViewPoint = viewPoint
+        dragCurrentViewPoint = viewPoint
+        dragTargetPage = page
+        updateMarqueeLayer()
     }
 
     override public func mouseDragged(with event: NSEvent) {
@@ -117,6 +87,28 @@ public final class BlackmarkerPDFView: PDFView {
             width: abs(endPt.x - startPt.x),
             height: abs(endPt.y - startPt.y)
         )
+
+        if viewRect.width < 6.0 && viewRect.height < 6.0 {
+            // Simple click: check if click landed on an existing redaction entity box
+            let pagePoint = convert(endPt, to: page)
+            let pageNumber = doc.index(for: page) + 1
+            for entity in entities where entity.pageNumber == pageNumber {
+                for bbox in entity.boundingBoxes {
+                    let rect = CGRect(
+                        x: bbox.x0 - 3.0,
+                        y: bbox.y0 - 3.0,
+                        width: max(8.0, bbox.width + 6.0),
+                        height: max(8.0, bbox.height + 6.0)
+                    )
+                    if rect.contains(pagePoint) {
+                        onSelectEntity?(entity.id)
+                        return
+                    }
+                }
+            }
+            super.mouseUp(with: event)
+            return
+        }
 
         guard viewRect.width >= 6.0, viewRect.height >= 6.0 else {
             return

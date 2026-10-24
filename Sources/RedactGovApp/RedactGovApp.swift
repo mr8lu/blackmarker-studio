@@ -125,17 +125,21 @@ struct RedactGovMacApp: App {
         }
         .defaultSize(width: 1380, height: 860)
 
-        // Menu Bar Quick-Scrub Droplet
+        Settings {
+            CertificateTemplateEditorSheet(viewModel: viewModel)
+        }
+
+        // Menu Bar Quick-Open Droplet
         MenuBarExtra("Blackmarker Studio", systemImage: "highlighter") {
             MenuBarDropletView(viewModel: viewModel)
-                .frame(width: 370)
+                .frame(width: 350)
                 .preferredColorScheme(.dark)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-// MARK: - Menu Bar Quick-Scrub Droplet
+// MARK: - Menu Bar Droplet (Opens Document in Studio for Safe Visual Review)
 
 struct MenuBarDropletView: View {
     @ObservedObject var viewModel: AppViewModel
@@ -151,63 +155,35 @@ struct MenuBarDropletView: View {
                     Text("Blackmarker Studio")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    Text("FOIA • HIPAA • PCI DSS • GLBA • Air-Gapped")
+                    Text("On-device FOIA, HIPAA, and financial PDF redactor")
                         .font(.caption)
                         .foregroundStyle(Color(white: 0.78))
                 }
                 Spacer()
-                WorkerBadgeView(state: viewModel.workerState)
             }
 
             Divider().overlay(Color(white: 0.28))
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Compliance Release Profile")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(white: 0.80))
-                Picker("Release Profile", selection: $viewModel.releaseProfile) {
-                    ForEach(ReleaseProfileChoice.allCases) { profile in
-                        Text(profile.title).tag(profile)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .onChange(of: viewModel.releaseProfile) { _, newProfile in
-                    viewModel.applyProfileDefaults(newProfile)
-                }
-
-                HStack(spacing: 6) {
-                    ForEach(DataDomainChoice.allCases) { domain in
-                        DomainTogglePill(
-                            domain: domain,
-                            isActive: viewModel.isDomainActive(domain),
-                            action: { viewModel.toggleDomain(domain) }
-                        )
-                    }
-                }
-                .padding(.top, 2)
-            }
-
-            // Drag & Drop Sanitization Zone
+            // Drag & Drop Review Zone
             VStack(spacing: 8) {
-                Image(systemName: viewModel.isDropTargeted ? "arrow.down.doc.fill" : "doc.badge.gearshape")
+                Image(systemName: viewModel.isDropTargeted ? "arrow.down.doc.fill" : "doc.viewfinder.fill")
                     .font(.system(size: 26))
                     .foregroundStyle(
                         viewModel.isDropTargeted
                             ? Color(red: 0.25, green: 0.90, blue: 0.65)
                             : Color(red: 0.48, green: 0.76, blue: 1.0)
                     )
-                Text(viewModel.isBusy ? "Sanitizing PDF Stream..." : "Drop PDF to Scrub & Certify")
+                Text(viewModel.isBusy ? "Scanning PDF..." : "Drop PDF to Open & Redact")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("Excises Tj/TJ glyphs, wipes XMP, and issues FOIA certificate")
+                Text("Opens in Studio so you can review and black out items before saving")
                     .font(.caption2)
                     .foregroundStyle(Color(white: 0.75))
                     .multilineTextAlignment(.center)
                 Button("Select PDF File...") {
-                    viewModel.openFilePickerAndAnalyze()
                     openWindow(id: "studio")
                     NSApplication.shared.activate(ignoringOtherApps: true)
+                    viewModel.openFilePickerAndAnalyze()
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.14, green: 0.52, blue: 0.88))
@@ -274,15 +250,6 @@ struct MenuBarDropletView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
-                Button {
-                    Task { await viewModel.suspendEphemeralWorker() }
-                } label: {
-                    Label("Free RAM", systemImage: "memorychip")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Terminate the ephemeral Gemma 4 E4B worker to reclaim unified memory immediately")
-
                 Spacer()
 
                 Button("Quit") {
@@ -308,7 +275,9 @@ struct MenuBarDropletView: View {
                 return
             }
             Task { @MainActor in
-                await viewModel.quickDropSanitize(pdfURL: url)
+                openWindow(id: "studio")
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                await viewModel.loadAndAnalyze(pdfURL: url)
             }
         }
         return true
@@ -344,7 +313,7 @@ struct SovereignStudioView: View {
                     }
                 }
 
-                // Bottom Status & Memory Bar
+                // Bottom Status Bar
                 StudioFooterStatusBar(viewModel: viewModel)
             }
         }
@@ -355,35 +324,18 @@ struct SovereignStudioView: View {
                 } label: {
                     Label("Open PDF", systemImage: "folder.badge.plus")
                 }
-                .help("Open a PDF document for FOIA redaction review")
+                .help("Open a PDF document to review and redact")
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
                 if let url = viewModel.selectedPDFURL {
-                    Button {
-                        viewModel.previewMode = .annotatedSource
-                        viewModel.isManualDrawMode.toggle()
-                    } label: {
-                        Label(
-                            viewModel.isManualDrawMode ? "Drawing Blackmarker..." : "Draw Redaction",
-                            systemImage: viewModel.isManualDrawMode ? "highlighter" : "rectangle.dashed"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(
-                        viewModel.isManualDrawMode
-                            ? Color(red: 0.08, green: 0.65, blue: 0.92)
-                            : Color(white: 0.26)
-                    )
-                    .help("Drag a rectangle directly on the PDF (or hold Shift + Drag anytime) to add a manual Blackmarker redaction")
-
                     Button {
                         Task { await viewModel.loadAndAnalyze(pdfURL: url) }
                     } label: {
                         Label("Re-Scan", systemImage: "arrow.trianglehead.2.clockwise")
                     }
                     .disabled(viewModel.isBusy)
-                    .help("Re-run Tier 1 Deterministic + Tier 2 Gemma 4 E4B analysis")
+                    .help("Re-scan document for sensitive items")
                 }
 
                 Button {
@@ -397,14 +349,7 @@ struct SovereignStudioView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.14, green: 0.68, blue: 0.44))
                 .disabled(viewModel.currentPlan == nil || viewModel.isBusy)
-                .help("Redact the PDF now (certificate generation is optional)")
-
-                Button {
-                    viewModel.isCertificateSheetPresented = true
-                } label: {
-                    Label("Certificate Options", systemImage: "checkmark.seal.text.page")
-                }
-                .help("Optional: configure or generate a compliance certificate after redacting")
+                .help("Permanently remove checked items and save a clean PDF")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -413,7 +358,7 @@ struct SovereignStudioView: View {
                 } label: {
                     Label("Toggle Inspector", systemImage: "sidebar.trailing")
                 }
-                .help("Show or hide the Redaction Plan inspector")
+                .help("Show or hide the found items checklist")
             }
         }
         .sheet(isPresented: $viewModel.isCertificateSheetPresented) {
@@ -517,36 +462,11 @@ struct StudioSidebarView: View {
                     }
                 }
 
-                // 2. Compliance Policy & A-La-Carte Redaction Scope
-                SidebarCard(title: "COMPLIANCE & REDACTION SCOPE", icon: "building.columns.fill") {
+                // 2. What to Redact (Kid-Simple Default + Optional Advanced Disclosure)
+                SidebarCard(title: "WHAT TO REDACT", icon: "shield.lefthalf.filled") {
                     VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Sector Release Profile")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color(white: 0.85))
-                            Picker("Release Profile", selection: $viewModel.releaseProfile) {
-                                ForEach(ReleaseProfileChoice.allCases) { option in
-                                    Text(option.title).tag(option)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .onChange(of: viewModel.releaseProfile) { _, newValue in
-                                viewModel.applyProfileDefaults(newValue)
-                                if let url = viewModel.selectedPDFURL {
-                                    Task { await viewModel.loadAndAnalyze(pdfURL: url) }
-                                }
-                            }
-                            Text(viewModel.releaseProfile.subtitle)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(white: 0.68))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Divider().overlay(Color(white: 0.22))
-
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("A-La-Carte Data Domains")
+                            Text("Auto-Detect & Redact")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color(white: 0.85))
                             HStack(spacing: 6) {
@@ -558,7 +478,7 @@ struct StudioSidebarView: View {
                                     )
                                 }
                             }
-                            Text("Toggle Identity (PII), Healthcare (PHI), or Financial (PPI) detectors independently.")
+                            Text("Personal Info, Medical & Health, and Bank & Card numbers are checked automatically.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(Color(white: 0.65))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -572,7 +492,7 @@ struct StudioSidebarView: View {
                                     Text("Include Certificate (Optional)")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.white)
-                                    Text("Redact first; create audit report only when needed")
+                                    Text("Create an audit report PDF alongside your clean file")
                                         .font(.system(size: 10))
                                         .foregroundStyle(Color(white: 0.65))
                                 }
@@ -587,7 +507,7 @@ struct StudioSidebarView: View {
                                         .foregroundStyle(Color(red: 0.48, green: 0.84, blue: 1.0))
                                         .lineLimit(1)
                                     Spacer()
-                                    Button("Customize...") {
+                                    Button("Template Settings...") {
                                         viewModel.isCertificateSheetPresented = true
                                     }
                                     .buttonStyle(.link)
@@ -598,76 +518,57 @@ struct StudioSidebarView: View {
 
                         Divider().overlay(Color(white: 0.22))
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("GPS Coordinate Policy")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color(white: 0.85))
-                            Picker("GPS Coordinates", selection: $viewModel.coordinatePolicy) {
-                                ForEach(CoordinatePolicyChoice.allCases) { option in
-                                    Text(option.title).tag(option)
+                        DisclosureGroup("Advanced Compliance Options") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Compliance Preset")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color(white: 0.85))
+                                    Picker("Release Profile", selection: $viewModel.releaseProfile) {
+                                        ForEach(ReleaseProfileChoice.allCases) { option in
+                                            Text(option.title).tag(option)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .onChange(of: viewModel.releaseProfile) { _, newValue in
+                                        viewModel.applyProfileDefaults(newValue)
+                                        if let url = viewModel.selectedPDFURL {
+                                            Task { await viewModel.loadAndAnalyze(pdfURL: url) }
+                                        }
+                                    }
+                                    Text(viewModel.releaseProfile.subtitle)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color(white: 0.65))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("GPS Coordinates")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color(white: 0.85))
+                                    Picker("GPS Coordinates", selection: $viewModel.coordinatePolicy) {
+                                        ForEach(CoordinatePolicyChoice.allCases) { option in
+                                            Text(option.title).tag(option)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .onChange(of: viewModel.coordinatePolicy) { _, _ in
+                                        if let url = viewModel.selectedPDFURL {
+                                            Task { await viewModel.loadAndAnalyze(pdfURL: url) }
+                                        }
+                                    }
                                 }
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .onChange(of: viewModel.coordinatePolicy) { _, _ in
-                                if let url = viewModel.selectedPDFURL {
-                                    Task { await viewModel.loadAndAnalyze(pdfURL: url) }
-                                }
-                            }
+                            .padding(.top, 6)
                         }
-
-                        Divider().overlay(Color(white: 0.22))
-
-                        Toggle(isOn: $viewModel.autoRepairImperfect) {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("Auto-Heal Imperfect PDFs")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.white)
-                                Text("Linearize & repair missing ToUnicode maps")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(Color(white: 0.65))
-                            }
-                        }
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-
-                        Toggle(isOn: $viewModel.useAppleVisionOCR) {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("Apple Vision Neural OCR")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.white)
-                                Text("Recover bounding boxes on scanned pages")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(Color(white: 0.65))
-                            }
-                        }
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(white: 0.78))
                     }
                 }
 
-                // 3. Sovereign Engine & Memory Lifecycle
-                SidebarCard(title: "EPHEMERAL WORKER ENGINE", icon: "cpu.fill") {
-                    HStack(spacing: 8) {
-                        WorkerBadgeView(state: viewModel.workerState)
-                        Spacer()
-                        Button {
-                            Task { await viewModel.suspendEphemeralWorker() }
-                        } label: {
-                            Label("Free RAM", systemImage: "memorychip")
-                                .font(.caption.weight(.semibold))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-
-                    Text("Spawns on demand over stdio JSON-RPC and auto-unloads Gemma 4 E4B after inactivity.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(white: 0.68))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // 4. File History (SQLite)
+                // 3. File History (SQLite)
                 SidebarCard(title: "FILE HISTORY", icon: "clock.arrow.circlepath") {
                     HStack(spacing: 6) {
                         Image(systemName: "magnifyingglass")
@@ -891,52 +792,17 @@ struct StudioCenterCanvasView: View {
                     .fill(Color(white: 0.22))
                     .frame(height: 1)
 
-                // Interactive Manual Blackmarker Bar (Always accessible on Source & Plan view)
+                // Interactive Manual Blackmarker Helper Strip (Always-On Marquee)
                 if viewModel.previewMode == .annotatedSource {
-                    HStack(spacing: 10) {
-                        Button {
-                            viewModel.isManualDrawMode.toggle()
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: viewModel.isManualDrawMode ? "checkmark.circle.fill" : "highlighter")
-                                    .font(.system(size: 11, weight: .bold))
-                                Text(viewModel.isManualDrawMode ? "Manual Blackmarker: ON (Drag on PDF)" : "Manual Blackmarker")
-                                    .font(.system(size: 11, weight: .bold))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(
-                                        viewModel.isManualDrawMode
-                                            ? Color(red: 0.08, green: 0.62, blue: 0.90)
-                                            : Color(white: 0.18)
-                                    )
-                            )
-                            .foregroundStyle(.white)
-                        }
-                        .buttonStyle(.plain)
-
-                        Text("Statute:")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color(white: 0.72))
-
-                        Picker("Manual Statute", selection: $viewModel.manualStatute) {
-                            ForEach(ManualStatuteOption.allCases) { statute in
-                                Text(statute.displayLabel).tag(statute)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .controlSize(.small)
-                        .frame(maxWidth: 270)
-
-                        Spacer()
-
-                        Text("Tip: Hold Shift + Drag anytime on the PDF to draw a redaction box")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color(white: 0.65))
+                    HStack(spacing: 8) {
+                        Image(systemName: "highlighter")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(red: 0.22, green: 0.74, blue: 0.98))
+                        Text("Drag anywhere on the page to black out extra text or regions • Click any box to select")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color(white: 0.82))
                             .lineLimit(1)
+                        Spacer()
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
@@ -956,7 +822,7 @@ struct StudioCenterCanvasView: View {
                         entities: viewModel.previewMode == .annotatedSource ? (viewModel.currentPlan?.entities ?? []) : [],
                         selectedEntityID: viewModel.selectedEntityID,
                         showAnnotations: viewModel.previewMode == .annotatedSource,
-                        isManualDrawMode: viewModel.previewMode == .annotatedSource && viewModel.isManualDrawMode,
+                        isManualDrawMode: viewModel.previewMode == .annotatedSource,
                         onSelectEntity: { id in
                             viewModel.selectedEntityID = id
                         },
@@ -1439,8 +1305,15 @@ struct EntityInspectorRow: View {
         entity.tier == "manual_blackmarker" || entity.category == "manual_redaction"
     }
 
+    private var friendlyCategory: String {
+        if isManual { return "Manual Box" }
+        return entity.category
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             Button(action: onToggle) {
                 Image(systemName: entity.approved ? "checkmark.square.fill" : "square")
                     .font(.system(size: 16, weight: .semibold))
@@ -1451,31 +1324,19 @@ struct EntityInspectorRow: View {
                     )
             }
             .buttonStyle(.plain)
-            .padding(.top, 2)
-            .help(entity.approved ? "Approved for surgical stream excision" : "Exempted from redaction")
+            .help(entity.approved ? "Checked: will be permanently redacted" : "Unchecked: will be kept visible")
 
-            VStack(alignment: .leading, spacing: 5) {
-                // Top Row: Domain Badge + Category Badge + Page + Confidence + Delete
+            VStack(alignment: .leading, spacing: 4) {
+                // Detected Token Text (Primary Focus)
+                Text(entity.text)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Compact Row: Friendly Category + Page Number
                 HStack(spacing: 6) {
-                    let dom = (entity.dataDomain ?? "PII").uppercased()
-                    Text(isManual ? "MANUAL" : dom)
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule().fill(
-                                isManual
-                                    ? Color(red: 0.08, green: 0.46, blue: 0.72)
-                                    : (dom == "PHI"
-                                        ? Color(red: 0.52, green: 0.22, blue: 0.78)
-                                        : (dom == "PPI"
-                                            ? Color(red: 0.68, green: 0.48, blue: 0.08)
-                                            : Color(red: 0.12, green: 0.48, blue: 0.76)))
-                            )
-                        )
-                        .foregroundStyle(.white)
-
-                    Text(isManual ? "BLACKMARKER" : entity.category.replacingOccurrences(of: "_", with: " ").uppercased())
+                    Text(friendlyCategory)
                         .font(.system(size: 10, weight: .bold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -1489,54 +1350,21 @@ struct EntityInspectorRow: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
-                    Spacer()
-
-                    Text("Page \(entity.pageNumber)")
+                    Text("p.\(entity.pageNumber)")
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.78))
-
-                    Text("\(Int(entity.confidence * 100))%")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color(red: 0.38, green: 0.90, blue: 0.62))
-
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color(white: 0.62))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove this redaction box from the plan")
-                }
-
-                // Detected Token Text
-                Text(entity.text)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // Statute Citation Row
-                HStack(spacing: 6) {
-                    Image(systemName: "text.book.closed.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color(red: 0.48, green: 0.82, blue: 1.0))
-                    Text(entity.statuteCode)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color(red: 0.52, green: 0.84, blue: 1.0))
-                        .lineLimit(1)
-                    Spacer()
-                    Text(entity.tier.replacingOccurrences(of: "_", with: " "))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(Color(white: 0.58))
-                }
-
-                if let contextLabel = entity.contextLabel, !contextLabel.isEmpty {
-                    Text(contextLabel)
-                        .font(.system(size: 11))
                         .foregroundStyle(Color(white: 0.75))
-                        .lineLimit(2)
+
+                    Spacer()
                 }
             }
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(white: 0.62))
+            }
+            .buttonStyle(.plain)
+            .help("Remove this box from the redaction plan")
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1553,17 +1381,24 @@ struct EntityInspectorRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
+        .help("\(friendlyCategory) • Citation: \(entity.statuteCode)")
     }
 }
 
-// MARK: - Bottom Status & Memory Footer Bar
+// MARK: - Bottom Status Footer Bar
 
 struct StudioFooterStatusBar: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
         HStack(spacing: 12) {
-            WorkerBadgeView(state: viewModel.workerState)
+            Circle()
+                .fill(
+                    viewModel.errorMessage != nil
+                        ? Color(red: 1.0, green: 0.45, blue: 0.45)
+                        : Color(red: 0.28, green: 0.92, blue: 0.58)
+                )
+                .frame(width: 7, height: 7)
 
             Text(viewModel.statusMessage)
                 .font(.caption)
@@ -1577,15 +1412,15 @@ struct StudioFooterStatusBar: View {
 
             Spacer()
 
-            Text("Profile: \(viewModel.releaseProfile.title)")
+            Text("Mode: \(viewModel.releaseProfile.title)")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color(white: 0.72))
 
             Text("•")
                 .foregroundStyle(Color(white: 0.40))
 
-            Text("PikePDF QPDF + Gemma 4 E4B")
-                .font(.system(size: 11, design: .monospaced))
+            Text("100% On-Device")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(white: 0.65))
         }
         .padding(.horizontal, 14)

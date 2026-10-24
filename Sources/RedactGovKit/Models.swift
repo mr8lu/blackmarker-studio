@@ -9,20 +9,20 @@ public enum DataDomainChoice: String, CaseIterable, Codable, Sendable, Identifia
 
     public var shortLabel: String {
         switch self {
-        case .pii: return "PII • Identity"
-        case .phi: return "PHI • Health"
-        case .ppi: return "PPI • Finance"
+        case .pii: return "Personal Info"
+        case .phi: return "Medical & Health"
+        case .ppi: return "Bank & Cards"
         }
     }
 
     public var tooltip: String {
         switch self {
         case .pii:
-            return "Personally Identifiable Information (SSN, Driver's License, DOB, Phone, Email, Passport, Juvenile/Victim)"
+            return "Personal Identifiers (SSN, Driver's License, DOB, Phone, Email, Passport, Names)"
         case .phi:
-            return "Protected Health Information (MRN, NPI, ICD-10 Diagnosis, Medicare HICN/MBI, Health Plan ID)"
+            return "Medical & Health Information (MRN, NPI, ICD-10 Diagnosis, Medicare ID, Health Plan ID)"
         case .ppi:
-            return "Payment & Financial Information (Credit/Debit PAN, ABA Routing, IBAN, Bank Account, Tax ID)"
+            return "Bank & Credit Card Numbers (Card Numbers, Routing Numbers, IBAN, Bank Accounts, Tax ID)"
         }
     }
 }
@@ -178,23 +178,23 @@ public enum ReleaseProfileChoice: String, CaseIterable, Codable, Sendable, Ident
     public var displayName: String {
         switch self {
         case .publicFoia:
-            return "Government FOIA & Open Records"
+            return "Public Records (FOIA)"
         case .strictPrivacy:
-            return "Strict Maximum Privacy (All PII/PHI/PPI)"
+            return "Standard (All Protections)"
         case .hipaa:
-            return "Healthcare HIPAA Safe Harbor (45 CFR § 164.514)"
+            return "Healthcare (HIPAA Safe Harbor)"
         case .pciDss:
-            return "Payment Card PCI DSS v4.0 (Req. 3.4)"
+            return "Payment Cards (PCI DSS)"
         case .glba:
-            return "Banking & Finance GLBA (16 CFR Part 314)"
+            return "Banking & Finance (GLBA)"
         case .frcp52:
-            return "Judicial Filing (Fed. R. Civ. P. 5.2)"
+            return "Court Filing (FRCP 5.2)"
         case .aicpaSoc2:
-            return "Enterprise AICPA SOC 2 Confidentiality"
+            return "Enterprise Audit (SOC 2)"
         case .environmentalReview:
-            return "Environmental & Critical Habitat Review"
+            return "Environmental & Habitat Review"
         case .lawEnforcement:
-            return "Law Enforcement & Victim Protection"
+            return "Law Enforcement & Victims"
         }
     }
 

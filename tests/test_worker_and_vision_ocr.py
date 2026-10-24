@@ -330,4 +330,41 @@ def test_redact_first_optional_certificate_second(tmp_path: Path) -> None:
     assert cert_pdf.exists()
 
 
+def test_review_md_kid_simple_ux_remediations() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    app_swift = (repo_root / "Sources" / "RedactGovApp" / "RedactGovApp.swift").read_text(
+        encoding="utf-8"
+    )
+    models_swift = (repo_root / "Sources" / "RedactGovKit" / "Models.swift").read_text(
+        encoding="utf-8"
+    )
+    vm_swift = (repo_root / "Sources" / "RedactGovApp" / "AppViewModel.swift").read_text(
+        encoding="utf-8"
+    )
+
+    # MUST-01: Manual Statute Picker removed from canvas bar
+    assert 'Picker("Manual Statute"' not in app_swift
+    # MUST-02: Ephemeral Worker Engine RAM card removed from sidebar
+    assert 'SidebarCard(title: "EPHEMERAL WORKER ENGINE"' not in app_swift
+    assert 'Label("Free RAM"' not in app_swift
+    # MUST-03: Technical toggles ("Auto-Heal Imperfect PDFs", "Apple Vision Neural OCR") removed from UI
+    assert 'Text("Auto-Heal Imperfect PDFs")' not in app_swift
+    assert 'Text("Apple Vision Neural OCR")' not in app_swift
+    # MUST-04: MenuBarDropletView opens Studio for visual review instead of silent auto-redaction
+    droplet_section = app_swift.split("struct MenuBarDropletView")[1].split(
+        "struct SovereignStudioView"
+    )[0]
+    assert "viewModel.loadAndAnalyze(pdfURL: url)" in droplet_section
+    assert "quickDropSanitize" not in droplet_section
+    # SHOULD-01 & SHOULD-02: Standard (All Protections) default + Plain-language domain labels
+    assert "releaseProfile: ReleaseProfileChoice = .strictPrivacy" in vm_swift
+    assert '"Standard (All Protections)"' in models_swift
+    assert '"Personal Info"' in models_swift
+    assert '"Medical & Health"' in models_swift
+    assert '"Bank & Cards"' in models_swift
+    # SHOULD-03: Certificate Template Editor moved to macOS Settings scene
+    assert "Settings {" in app_swift
+
+
+
 
