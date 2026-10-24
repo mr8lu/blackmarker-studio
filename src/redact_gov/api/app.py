@@ -1,5 +1,7 @@
 """FastAPI local service for Blackmarker Studio Human-in-the-Loop review interface."""
 
+import re
+import secrets
 import shutil
 import uuid
 from pathlib import Path
@@ -20,10 +22,39 @@ from redact_gov.core.models import (
 from redact_gov.core.statutes import list_statutes
 from redact_gov.pipeline import RedactionPipeline
 
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MiB ceiling for uploaded PDFs
+_SAFE_DOC_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{6,64}$")
+_SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._\-\s()]+$")
+
+
+def _sanitize_upload_filename(raw_filename: Optional[str]) -> str:
+    """Validate and canonicalize an uploaded PDF filename to prevent path traversal."""
+    if not raw_filename or not isinstance(raw_filename, str):
+        raise HTTPException(status_code=400, detail="Valid PDF filename is required.")
+    if "\x00" in raw_filename or ".." in raw_filename or "/" in raw_filename or "\\" in raw_filename:
+        raise HTTPException(status_code=400, detail="Invalid filename: path traversal or directory separators are not allowed.")
+    safe_name = Path(raw_filename).name.strip()
+    if (
+        not safe_name
+        or safe_name != raw_filename.strip()
+        or not safe_name.lower().endswith(".pdf")
+        or len(safe_name) <= 4
+        or not _SAFE_FILENAME_RE.match(safe_name)
+    ):
+        raise HTTPException(status_code=400, detail="Only valid PDF files (.pdf) are supported.")
+    return safe_name
+
+
+def _validate_doc_id(doc_id: str) -> str:
+    """Ensure doc_id contains only safe token characters."""
+    if not doc_id or not _SAFE_DOC_ID_RE.match(doc_id):
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return doc_id
+
 app = FastAPI(
     title="Blackmarker Studio Sovereign Redaction API",
     description="Local on-device API for air-gapped FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2 & AICPA redaction and customizable compliance certificates.",
-    version="0.4.1",
+    version="0.4.2",
 )
 
 app.add_middleware(
@@ -113,14 +144,30 @@ async def upload_document(
     profile: str = Form("public_foia"),
     domains: str = Form("PII,PHI,PPI"),
 ):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    safe_filename = _sanitize_upload_filename(file.filename)
 
-    doc_id = str(uuid.uuid4())[:8]
-    doc_path = settings.OUTPUT_DIR / f"upload_{doc_id}_{file.filename}"
+    doc_id = secrets.token_urlsafe(16)
+    output_root = settings.OUTPUT_DIR.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    doc_path = (output_root / f"upload_{doc_id}_{safe_filename}").resolve()
 
-    with doc_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    if not doc_path.is_relative_to(output_root) or doc_path.parent != output_root:
+        raise HTTPException(status_code=400, detail="Invalid upload destination path.")
+
+    total_written = 0
+    try:
+        with doc_path.open("wb") as buffer:
+            while True:
+                chunk = file.file.read(64 * 1024)
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Uploaded PDF exceeds maximum allowed size.")
+                buffer.write(chunk)
+    except HTTPException:
+        doc_path.unlink(missing_ok=True)
+        raise
 
     DOC_STORE[doc_id] = doc_path
 
@@ -139,7 +186,7 @@ async def upload_document(
 
     return {
         "doc_id": doc_id,
-        "filename": file.filename,
+        "filename": safe_filename,
         "total_pages": plan.total_pages,
         "entities_detected": len(plan.entities),
         "plan": plan,
@@ -148,6 +195,7 @@ async def upload_document(
 
 @app.get("/api/documents/{doc_id}/plan")
 def get_plan(doc_id: str):
+    _validate_doc_id(doc_id)
     if doc_id not in PLAN_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
     return PLAN_STORE[doc_id]
@@ -155,6 +203,7 @@ def get_plan(doc_id: str):
 
 @app.post("/api/documents/{doc_id}/plan")
 def update_plan(doc_id: str, plan: RedactionPlan):
+    _validate_doc_id(doc_id)
     if doc_id not in PLAN_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
     PLAN_STORE[doc_id] = plan
@@ -163,6 +212,7 @@ def update_plan(doc_id: str, plan: RedactionPlan):
 
 @app.post("/api/documents/{doc_id}/replan")
 def replan_document(doc_id: str, req: ReplanRequest):
+    _validate_doc_id(doc_id)
     if doc_id not in DOC_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
     doc_path = DOC_STORE[doc_id]
@@ -191,6 +241,7 @@ def execute_redaction(
     doc_id: str,
     req: Optional[ExecuteRequest] = Body(default=None),
 ):
+    _validate_doc_id(doc_id)
     if doc_id not in DOC_STORE or doc_id not in PLAN_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
 
@@ -224,6 +275,7 @@ def execute_redaction(
 
 @app.get("/api/documents/{doc_id}/download")
 def download_sanitized_pdf(doc_id: str):
+    _validate_doc_id(doc_id)
     if doc_id not in DOC_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
 
@@ -237,6 +289,7 @@ def download_sanitized_pdf(doc_id: str):
 
 @app.get("/api/documents/{doc_id}/certificate")
 def download_certificate_pdf(doc_id: str):
+    _validate_doc_id(doc_id)
     if doc_id not in DOC_STORE:
         raise HTTPException(status_code=404, detail="Document not found.")
 

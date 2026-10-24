@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from xml.sax.saxutils import escape as xml_escape
 import polars as pl
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -170,10 +171,10 @@ class CertificateGenerator:
         elements = []
 
         # Customizable Header Banner
-        elements.append(Paragraph(cfg.jurisdiction_banner, title_style))
-        elements.append(Paragraph(cfg.framework_subtitle, subtitle_style))
+        elements.append(Paragraph(xml_escape(str(cfg.jurisdiction_banner)), title_style))
+        elements.append(Paragraph(xml_escape(str(cfg.framework_subtitle)), subtitle_style))
         elements.append(Spacer(1, 0.18 * inch))
-        elements.append(Paragraph(f"<b>{cfg.certificate_title}</b>", styles["Heading2"]))
+        elements.append(Paragraph(f"<b>{xml_escape(str(cfg.certificate_title))}</b>", styles["Heading2"]))
         elements.append(Spacer(1, 0.1 * inch))
 
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -252,7 +253,7 @@ class CertificateGenerator:
         elements.append(Paragraph("<b>2. Legal & Compliance Attestation</b>", styles["Heading3"]))
         elements.append(
             Paragraph(
-                cfg.attestation_statement,
+                xml_escape(str(cfg.attestation_statement)),
                 body_style,
             )
         )

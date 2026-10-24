@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import tempfile
 import time
 from typing import Any, Dict, Iterable, List, Optional, Union
 import pdfplumber
@@ -207,9 +208,15 @@ class RedactionPipeline:
 
                     # 2. Tier 2 Contextual Cognitive Path / Multimodal Vision
                     if len(page_text.strip()) < 20:
+                        img_path: Optional[Path] = None
                         try:
                             page_img = page.to_image(resolution=72).original
-                            img_path = Path(f"/tmp/redact_gov_page_{page_idx}.png")
+                            with tempfile.NamedTemporaryFile(
+                                prefix=f"redact_gov_page_{page_idx}_",
+                                suffix=".png",
+                                delete=False,
+                            ) as tmp_img:
+                                img_path = Path(tmp_img.name)
                             page_img.save(img_path)
                             tier2_entities = self.contextual_engine.analyze_image(
                                 img_path,
@@ -217,10 +224,11 @@ class RedactionPipeline:
                                 enabled_domains=active_domains,
                                 profile=effective_profile,
                             )
-                            if img_path.exists():
-                                img_path.unlink()
                         except Exception:
                             tier2_entities = []
+                        finally:
+                            if img_path is not None:
+                                img_path.unlink(missing_ok=True)
                     else:
                         tier2_entities = (
                             self.contextual_engine.analyze_text(

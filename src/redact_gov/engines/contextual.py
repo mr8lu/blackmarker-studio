@@ -157,12 +157,27 @@ class ContextualGemmaEngine:
         enabled_domains: Optional[Iterable[str]] = None,
         profile: Optional[str] = None,
     ) -> List[RedactionEntity]:
-        """Analyze text using on-device Gemma 4 E4B or contextual heuristics filtered by domain."""
+        """Analyze text using on-device Gemma 4 E4B and deterministic contextual heuristics filtered by domain."""
+        heuristic_entities = self._run_contextual_heuristic(text, page_number, profile=profile)
         if self.llama_instance is not None:
-            raw = self._run_gemma_inference(text, page_number)
+            llm_entities = self._run_gemma_inference(text, page_number)
+            seen = {(e.text.strip().lower(), e.category) for e in llm_entities}
+            raw = list(llm_entities)
+            for he in heuristic_entities:
+                key = (he.text.strip().lower(), he.category)
+                if key not in seen:
+                    seen.add(key)
+                    raw.append(he)
         else:
-            raw = self._run_contextual_heuristic(text, page_number, profile=profile)
+            raw = heuristic_entities
         return self._filter_and_tag(raw, enabled_domains=enabled_domains, profile=profile)
+
+    @staticmethod
+    def _sanitize_prompt_input(text: str) -> str:
+        """Strip Gemma chat-turn control tokens and collapse stop-sequence newline runs."""
+        cleaned = re.sub(r"<\s*/?\s*(?:start_of_turn|end_of_turn|bos|eos)\s*>", " ", text, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned
 
     def _filter_and_tag(
         self,
@@ -190,7 +205,8 @@ class ContextualGemmaEngine:
 
     def _run_gemma_inference(self, text: str, page_number: int) -> List[RedactionEntity]:
         """Run Gemma 4 E4B with constrained JSON response."""
-        prompt = GEMMA_PROMPT_TEMPLATE.format(document_text=text)
+        safe_text = self._sanitize_prompt_input(text)
+        prompt = GEMMA_PROMPT_TEMPLATE.replace("{document_text}", safe_text)
         try:
             output = self.llama_instance(
                 prompt,
