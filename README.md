@@ -2,7 +2,7 @@
   <img src="assets/icon/icon_512.png" width="140" height="140" alt="Blackmarker Studio App Icon" />
 </p>
 
-<h1 align="center">Blackmarker Studio</h1>
+<h1 align="center">Blackmarker Studio - On-device FOIA, HIPAA, and financial PDF redactor</h1>
 
 <p align="center">
   <strong>Sovereign, air-gapped multi-sector document redaction &amp; compliance studio (FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, AICPA SOC 2) with a-la-carte PII / PHI / PPI selection, powered by on-device Google Gemma 4 E4B, interactive Manual Blackmarker marquee drawing, and surgical PikePDF stream excision.</strong>
