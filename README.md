@@ -285,7 +285,7 @@ Open `http://127.0.0.1:8000` in your browser to upload PDFs, toggle `PII` / `PHI
 
 ## Cross-Platform & Multi-OS Roadmap
 
-> **Current Build Status (`v0.4.0`):** Blackmarker Studio is **currently built, packaged, and verified on macOS 14+ (Apple Silicon & Intel)** only. Windows and Linux builds have **not** been packaged or tested yet and are scheduled on the **`v0.5.0` roadmap**.
+> **Current Build Status (`v0.4.1`):** Blackmarker Studio is **currently built, packaged, and verified on macOS 14+ (Apple Silicon & Intel)** only. Windows and Linux builds have **not** been packaged or tested yet and are scheduled on the **`v0.5.0` roadmap**.
 
 Because the underlying Python sanitization engine (`pikepdf`/`QPDF`, `pdfplumber`, `polars`, `reportlab`, `FastAPI`) uses portable open-source libraries, our `v0.5.0` milestone focuses on building, testing, and packaging standalone Windows and Linux distributions alongside our existing macOS app bundle.
 
@@ -293,18 +293,18 @@ Because the underlying Python sanitization engine (`pikepdf`/`QPDF`, `pdfplumber
 
 | Layer / Capability | macOS 14+ (Apple Silicon & Intel) | Windows 10 / 11 (x64 & ARM64) | Linux Desktop & Server (Ubuntu / Debian / RHEL / WSL2) |
 | :--- | :---: | :---: | :---: |
-| **Build & Verification Status** | **Built & Verified (`v0.4.0` Today)** | **Planned (`v0.5.0` Roadmap)** | **Planned (`v0.5.0` Roadmap)** |
-| **Core PikePDF / QPDF Stream Sanitizer** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
-| **Spatial Geometry (`pdfplumber`) & Polars Audit Engine** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
-| **Tier 1 Deterministic Engine (`PII` • `PHI` • `PPI`)** | Built & Verified (`v0.4.0`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
-| **Tier 2 Google Gemma 4 E4B (`llama-cpp-python`)** | Apple Metal / CPU (`v0.4.0` Today) | Planned CPU / CUDA / Vulkan (`v0.5.0`) | Planned CPU / CUDA / ROCm / Vulkan (`v0.5.0`) |
-| **`blackmarker` CLI & Local Web HITL (`blackmarker serve`)** | Built & Verified (`v0.4.0`) | Planned Windows Build (`v0.5.0`) | Planned Linux Build (`v0.5.0`) |
+| **Build & Verification Status** | **Built & Verified (`v0.4.1` Today)** | **Planned (`v0.5.0` Roadmap)** | **Planned (`v0.5.0` Roadmap)** |
+| **Core PikePDF / QPDF Stream Sanitizer** | Built & Verified (`v0.4.1`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Spatial Geometry (`pdfplumber`) & Polars Audit Engine** | Built & Verified (`v0.4.1`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 1 Deterministic Engine (`PII` • `PHI` • `PPI`)** | Built & Verified (`v0.4.1`) | Planned Verification (`v0.5.0`) | Planned Verification (`v0.5.0`) |
+| **Tier 2 Google Gemma 4 E4B (`llama-cpp-python`)** | Apple Metal / CPU (`v0.4.1` Today) | Planned CPU / CUDA / Vulkan (`v0.5.0`) | Planned CPU / CUDA / ROCm / Vulkan (`v0.5.0`) |
+| **`blackmarker` CLI & Local Web HITL (`blackmarker serve`)** | Built & Verified (`v0.4.1`) | Planned Windows Build (`v0.5.0`) | Planned Linux Build (`v0.5.0`) |
 | **Native Desktop Studio Shell & System Tray Droplet** | `Blackmarker Studio.app` (SwiftUI + `PDFKit` + `MenuBarExtra` - **Today**) | Planned `.exe` / `.msi` (`WebView2` / `Tauri v2` + `pystray` - **`v0.5.0`**) | Planned `.AppImage` / `.deb` / `.rpm` (`WebKitGTK` + Tray - **`v0.5.0`**) |
 | **On-Device Scanned PDF OCR** | Apple `Vision` (`VNRecognizeTextRequest`) + Gemma 4 Vision (**Today**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) | Planned Local ONNX Runtime (`RapidOCR`) + Gemma 4 Vision (**`v0.5.0`**) |
 
 ### Release Milestones
 
-- **`v0.4.0` (Current Release - macOS 14+ Only):**
+- **`v0.4.1` (Current Release - macOS 14+ Only):**
   - **macOS 14+ (`Blackmarker Studio.app`):** Native SwiftUI desktop studio, `PDFKit` annotation canvas, Apple `Vision` (`VNRecognizeTextRequest`) neural OCR, `MenuBarExtra` status bar quick-scrub droplet, and Apple Metal GPU acceleration.
   - **`blackmarker` CLI & Local Web HITL Studio (`blackmarker serve`):** Built and verified on macOS with `PDF.js` interactive review canvas, `Shift + Drag` Manual Blackmarker marquee drawing, a-la-carte `PII` / `PHI` / `PPI` toggles, and ReportLab compliance certificates.
 - **`v0.5.0` (Planned Roadmap) - Cross-Platform Verification, macOS Finder Quick Action & Native Windows / Linux Packaging:**

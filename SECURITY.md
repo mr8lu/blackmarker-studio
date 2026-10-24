@@ -10,8 +10,8 @@ Because an incomplete redaction can expose regulated `PII`, `PHI`, or `PPI` in p
 
 | Version | Supported | Notes |
 | :--- | :---: | :--- |
-| `0.4.x` (Current) | Yes | Active support for multi-sector `PII` / `PHI` / `PPI` sanitization & `Blackmarker Studio.app` |
-| `< 0.4.0` | No | Please upgrade to `0.4.0` or newer |
+| `0.4.x` (Current) | Yes | Active support for multi-sector `PII` / `PHI` / `PPI` sanitization & `Blackmarker Studio.app` (`v0.4.1`) |
+| `< 0.4.0` | No | Please upgrade to `0.4.1` or newer |
 
 ---
 

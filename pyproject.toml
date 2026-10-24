@@ -1,6 +1,6 @@
 [project]
 name = "redact-gov"
-version = "0.4.0"
+version = "0.4.1"
 description = "Blackmarker Studio - On-device FOIA, HIPAA, and financial PDF redactor (PII, PHI, PPI) powered by Google Gemma 4 E4B and surgical PikePDF stream sanitization."
 readme = "README.md"
 requires-python = ">=3.12"

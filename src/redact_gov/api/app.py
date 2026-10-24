@@ -23,7 +23,7 @@ from redact_gov.pipeline import RedactionPipeline
 app = FastAPI(
     title="Blackmarker Studio Sovereign Redaction API",
     description="Local on-device API for air-gapped FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2 & AICPA redaction and customizable compliance certificates.",
-    version="0.4.0",
+    version="0.4.1",
 )
 
 app.add_middleware(
