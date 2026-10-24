@@ -118,9 +118,9 @@ Need surgical control beyond a preset profile? Mix and match individual data dom
 
 ---
 
-## Customizable Redaction Certificates
+## Optional Compliance & Redaction Certificates (Redact First, Documentation Second)
 
-Every sanitization run can emit a formal, cryptographically hashed **Compliance & Redaction Certificate PDF** powered by Polars and ReportLab. Choose from six built-in industry presets or customize every field:
+By default, Blackmarker Studio prioritizes fast, clutter-free redaction (`<name>_sanitized.pdf` only). Whenever formal audit documentation is needed, you can toggle **Include Certificate (Optional)** before redacting or click **Add Certificate / Generate Certificate** on demand after redacting to emit a cryptographically hashed **Compliance & Redaction Certificate PDF** powered by Polars and ReportLab:
 
 - **Built-in Certificate Presets (`--cert-preset`):**
   - `generic_compliance` - Multi-Sector PII / PHI / PPI Sanitization Certificate
@@ -213,7 +213,8 @@ open "build/Blackmarker Studio.app"
   - Blackmarker Studio automatically snaps to and resolves all underlying PDF word tokens inside your drawn rectangle.
   - Assign any FOIA, HIPAA, PCI DSS, GLBA, FRCP 5.2, or SOC 2 citation code to the manual box.
   - Upon export, both the visual area and the underlying PDF content stream glyphs are permanently excised.
-- **Certificate Template Editor Sheet:** Click **Certificate Template** in the toolbar to select an industry preset or customize your organization name, header banner, and legal attestation before exporting.
+- **Redact First, Certify on Demand:** Click **Redact PDF** to immediately excise sensitive bytes without extra file clutter, or click **Add Certificate** / **Certificate Options** to generate a customized compliance certificate after redacting.
+- **Privacy-Safe File History:** The sidebar's **File History** tracks only existing sanitized PDFs on disk (`document_name` and `page_number`), never stores raw redacted text in SQLite, and automatically prunes deleted files.
 
 ---
 
