@@ -33,20 +33,44 @@ if [[ -f "${ROOT_DIR}/assets/icon/AppIcon.icns" ]]; then
     cp "${ROOT_DIR}/assets/icon/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
 
+if [[ -d "${ROOT_DIR}/data/synthetic_corpus" ]]; then
+    mkdir -p "${RESOURCES_DIR}/synthetic_corpus"
+    cp -R "${ROOT_DIR}/data/synthetic_corpus/"*.pdf "${RESOURCES_DIR}/synthetic_corpus/" 2>/dev/null || true
+fi
+
+mkdir -p "${RESOURCES_DIR}/backend"
+cp "${ROOT_DIR}/pyproject.toml" "${ROOT_DIR}/README.md" "${RESOURCES_DIR}/backend/"
+cp -R "${ROOT_DIR}/src" "${RESOURCES_DIR}/backend/src"
+
 echo "[4/5] Installing ephemeral helper Contents/Helpers/redactgov-worker..."
-cat > "${HELPERS_DIR}/redactgov-worker" <<EOF
+cat > "${HELPERS_DIR}/redactgov-worker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-export REDACTGOV_WORKSPACE_ROOT="${ROOT_DIR}"
-cd "${ROOT_DIR}"
-if [[ -x "${ROOT_DIR}/.venv/bin/blackmarker" ]]; then
-    exec "${ROOT_DIR}/.venv/bin/blackmarker" worker "\$@"
-elif [[ -x "${ROOT_DIR}/.venv/bin/redactgov" ]]; then
-    exec "${ROOT_DIR}/.venv/bin/redactgov" worker "\$@"
+export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+
+HELPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONTENTS_DIR="$(cd "${HELPER_DIR}/.." && pwd)"
+BUNDLED_BACKEND="${CONTENTS_DIR}/Resources/backend"
+DEV_ROOT="__DEV_ROOT__"
+
+if [[ -d "${DEV_ROOT}" && -x "${DEV_ROOT}/.venv/bin/blackmarker" ]]; then
+    export REDACTGOV_WORKSPACE_ROOT="${DEV_ROOT}"
+    cd "${DEV_ROOT}"
+    exec "${DEV_ROOT}/.venv/bin/blackmarker" worker "$@"
+elif command -v blackmarker >/dev/null 2>&1; then
+    exec blackmarker worker "$@"
+elif command -v uv >/dev/null 2>&1 && [[ -f "${BUNDLED_BACKEND}/pyproject.toml" ]]; then
+    RUNTIME_DIR="${HOME}/Library/Application Support/RedactGov/runtime"
+    mkdir -p "${RUNTIME_DIR}"
+    rsync -a --delete --exclude '.venv' "${BUNDLED_BACKEND}/" "${RUNTIME_DIR}/"
+    cd "${RUNTIME_DIR}"
+    exec uv run blackmarker worker "$@"
 else
-    exec uv run blackmarker worker "\$@"
+    echo "Error: Neither blackmarker nor uv found on PATH." >&2
+    exit 1
 fi
 EOF
+sed -i '' "s|__DEV_ROOT__|${ROOT_DIR}|g" "${HELPERS_DIR}/redactgov-worker"
 chmod +x "${HELPERS_DIR}/redactgov-worker"
 
 cat > "${CONTENTS_DIR}/Info.plist" <<EOF

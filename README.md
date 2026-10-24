@@ -135,7 +135,16 @@ Every sanitization run can emit a formal, cryptographically hashed **Compliance 
 
 ## Quickstart & Installation
 
-### Prerequisites
+### Option A: Install via Homebrew (macOS 14+ App Bundle)
+
+```bash
+brew tap mr8lu/tap
+brew install --cask mr8lu/tap/blackmarker-studio
+```
+
+### Option B: Build from Source (`uv` + SwiftPM)
+
+#### Prerequisites
 
 Ensure the following tools are installed on your workstation:
 

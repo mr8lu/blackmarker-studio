@@ -164,17 +164,27 @@ public final class AppViewModel: ObservableObject {
     }
 
     public func discoverSyntheticSamples() {
-        let synthDir = workspaceRoot.appendingPathComponent("data/synthetic_corpus", isDirectory: true)
-        guard let items = try? FileManager.default.contentsOfDirectory(
-            at: synthDir,
-            includingPropertiesForKeys: nil
-        ) else {
-            syntheticSamples = []
-            return
+        var candidateDirs: [URL] = [
+            workspaceRoot.appendingPathComponent("data/synthetic_corpus", isDirectory: true)
+        ]
+        if let resURL = Bundle.main.resourceURL {
+            candidateDirs.append(resURL.appendingPathComponent("synthetic_corpus", isDirectory: true))
         }
-        syntheticSamples = items
-            .filter { $0.pathExtension.lowercased() == "pdf" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        for synthDir in candidateDirs {
+            if let items = try? FileManager.default.contentsOfDirectory(
+                at: synthDir,
+                includingPropertiesForKeys: nil
+            ) {
+                let pdfs = items
+                    .filter { $0.pathExtension.lowercased() == "pdf" }
+                    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                if !pdfs.isEmpty {
+                    syntheticSamples = pdfs
+                    return
+                }
+            }
+        }
+        syntheticSamples = []
     }
 
     public var filteredEntities: [RedactionEntityItem] {
