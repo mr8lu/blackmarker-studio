@@ -27,3 +27,10 @@ models/*.bin
 *.swp
 .build/
 .swiftpm/
+
+# Agent collaboration state files
+REVIEW.md
+FEEDBACK.md
+review.md
+feedback.md
+
