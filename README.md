@@ -274,7 +274,7 @@ blackmarker-studio/
 
 | Operating System | Status | Desktop App & Tray Droplet | Core CLI, PikePDF Sanitizer & Local Gemma 4 AI |
 | :--- | :--- | :--- | :--- |
-| **macOS 14+ (Apple Silicon & Intel)** | **Built & Verified Today (`v0.4.1`)** | Native SwiftUI `Blackmarker Studio.app` + `MenuBarExtra` | Verified (`Apple Metal` / CPU + Apple `Vision` OCR) |
+| **macOS 14+ (Apple Silicon & Intel)** | **Built & Verified Today (`v0.4.2`)** | Native SwiftUI `Blackmarker Studio.app` + `MenuBarExtra` | Verified (`Apple Metal` / CPU + Apple `Vision` OCR) |
 | **Windows 10 / 11 (x64 & ARM64)** | **Planned (`v0.5.0` Roadmap)** | Planned `.exe` / `.msi` (`WebView2` / `Tauri v2` + Tray) | Planned `v0.5.0` Verification (CPU / CUDA / Vulkan + `RapidOCR`) |
 | **Linux & Docker (Ubuntu / RHEL / WSL2)** | **Planned (`v0.5.0` Roadmap)** | Planned `.AppImage` / `.deb` / `.rpm` (`WebKitGTK` + Tray) | Planned `v0.5.0` Verification (CPU / CUDA / ROCm + `--network=none` OCI) |
 
@@ -283,7 +283,7 @@ blackmarker-studio/
 
 ### Layer-by-Layer Multi-OS Matrix
 
-| Layer / Capability | macOS 14+ (`v0.4.1` Today) | Windows 10 / 11 (`v0.5.0` Planned) | Linux & Docker (`v0.5.0` Planned) |
+| Layer / Capability | macOS 14+ (`v0.4.2` Today) | Windows 10 / 11 (`v0.5.0` Planned) | Linux & Docker (`v0.5.0` Planned) |
 | :--- | :--- | :--- | :--- |
 | **PikePDF / QPDF Stream Sanitizer** | Built & Verified | Portable Python / QPDF | Portable Python / QPDF |
 | **Spatial Geometry & Polars Audit** | Built & Verified | Portable Python / Rust | Portable Python / Rust |
@@ -294,7 +294,7 @@ blackmarker-studio/
 
 ### Release Milestones
 
-- **`v0.4.1` (Current Release - macOS 14+ Verified):**
+- **`v0.4.2` (Current Release - macOS 14+ Verified):**
   - Native SwiftUI desktop studio (`Blackmarker Studio.app`), `PDFKit` annotation canvas, Apple `Vision` (`VNRecognizeTextRequest`) neural OCR, `MenuBarExtra` status bar droplet, `blackmarker` CLI, and local Web HITL Studio (`blackmarker serve`).
 - **`v0.5.0` (Planned Roadmap - Windows, Linux & Finder Quick Actions):**
   - **macOS Finder Right-Click Quick Action:** Instant right-click PDF redaction directly in Finder with profile selection (`PII`, `PHI`, `PPI`).
